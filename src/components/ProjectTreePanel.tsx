@@ -41,7 +41,8 @@ export const ProjectTreePanel = memo(function ProjectTreePanel(): React.ReactNod
     [pullRequest?.files],
   );
   const fullPaths = useMemo(
-    () => treeQuery.data?.entries.filter((entry) => entry.type === 'blob').map((entry) => entry.path),
+    () =>
+      treeQuery.data?.entries.filter((entry) => entry.type === 'blob').map((entry) => entry.path),
     [treeQuery.data?.entries],
   );
   const paths = mode === 'full' && fullPaths !== undefined ? fullPaths : modifiedPaths;
@@ -87,7 +88,14 @@ export const ProjectTreePanel = memo(function ProjectTreePanel(): React.ReactNod
     if (mode === 'full' && treeQuery.isError) return 'Repository tree unavailable';
     if (mode === 'full' && treeQuery.data?.truncated === true) return 'Repository tree truncated';
     return `${paths.length} files`;
-  }, [mode, paths.length, pullRequest, treeQuery.data?.truncated, treeQuery.isError, treeQuery.isLoading]);
+  }, [
+    mode,
+    paths.length,
+    pullRequest,
+    treeQuery.data?.truncated,
+    treeQuery.isError,
+    treeQuery.isLoading,
+  ]);
 
   return (
     <aside
