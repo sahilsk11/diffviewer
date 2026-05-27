@@ -23,7 +23,7 @@ def get_read_state_store(request: Request) -> ReadStateStore:
 
 
 def get_pull_request_service(request: Request) -> PullRequestService:
-    return PullRequestService(get_github_client(request), get_read_state_store(request))
+    return request.app.state.pull_request_service
 
 
 def get_file_service(request: Request) -> FileService:

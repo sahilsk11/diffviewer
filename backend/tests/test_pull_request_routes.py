@@ -253,3 +253,68 @@ def test_contents_route_uses_base_tree_for_left_side(tmp_path: Path) -> None:
         "contents": "base content",
     }
     assert base_tree_route.called
+
+
+@respx.mock
+def test_contents_route_reuses_cached_pull_request_tree_and_blob(tmp_path: Path) -> None:
+    pr_route = respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "title": "PR title",
+                "html_url": "https://github.com/OWNER/REPO/pull/123",
+                "base": {"sha": "base_sha"},
+                "head": {"sha": "head_sha", "ref": "branch-name"},
+                "user": {"login": "login"},
+            },
+        ),
+    )
+    files_route = respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123/files").mock(
+        return_value=httpx.Response(200, json=[]),
+    )
+    tree_route = respx.get("https://api.github.test/repos/OWNER/REPO/git/trees/head_sha").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "truncated": False,
+                "tree": [
+                    {
+                        "path": "src/example.ts",
+                        "type": "blob",
+                        "sha": "head_blob_sha",
+                        "size": 12,
+                    },
+                ],
+            },
+        ),
+    )
+    blob_route = respx.get("https://api.github.test/repos/OWNER/REPO/git/blobs/head_blob_sha").mock(
+        return_value=httpx.Response(
+            200,
+            json={"encoding": "base64", "content": "aGVhZCBjb250ZW50"},
+        ),
+    )
+    app = create_app(
+        Settings(
+            github_api_base_url="https://api.github.test",
+            diffviewer_db_path=tmp_path / "test.sqlite3",
+        ),
+    )
+
+    with TestClient(app) as client:
+        first_response = client.get(
+            "/api/repos/OWNER/REPO/pulls/123/contents",
+            params={"path": "src/example.ts", "side": "RIGHT"},
+        )
+        second_response = client.get(
+            "/api/repos/OWNER/REPO/pulls/123/contents",
+            params={"path": "src/example.ts", "side": "RIGHT"},
+        )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert second_response.json()["contents"] == "head content"
+    assert len(pr_route.calls) == 1
+    assert len(files_route.calls) == 1
+    assert len(tree_route.calls) == 1
+    assert len(blob_route.calls) == 1

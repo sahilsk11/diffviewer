@@ -18,7 +18,7 @@ async def load_pull_request(
     service: Annotated[PullRequestService, Depends(get_pull_request_service)],
 ) -> PullRequestResponse:
     try:
-        return await service.load(str(payload.url))
+        return await service.load(str(payload.url), force_refresh=True)
     except PullRequestUrlError as error:
         raise HTTPException(
             status_code=400,

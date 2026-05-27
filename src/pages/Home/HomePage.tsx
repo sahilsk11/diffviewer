@@ -7,7 +7,7 @@ import {
   MultiFileDiff,
   Virtualizer,
 } from '@pierre/diffs/react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { type QueryKey, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, CircleCheckBig, ExternalLink, Flag, SkipForward } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -18,9 +18,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { isApiError } from '@/lib/api';
 import { useDiffSettings } from '@/lib/diff-settings';
 import { diffviewerApi } from '@/lib/diffviewer-api';
-import { parseGitHubPullRequestUrl } from '@/lib/github-pr';
+import { normalizeGitHubPullRequestUrl, parseGitHubPullRequestUrl } from '@/lib/github-pr';
 import { readStateByPath, useReviewSession } from '@/lib/review-state';
-import type { FileSide, PullRequestFile, ReviewStatus } from '@/lib/types';
+import type { FileSide, PullRequestDetails, PullRequestFile, ReviewStatus } from '@/lib/types';
 
 interface FileChange {
   id: string;
@@ -73,18 +73,74 @@ async function readContents(
   }
 }
 
+function fileContentsQueryKey(
+  pullRequest: PullRequestDetails,
+  path: string,
+): QueryKey {
+  return [
+    'file-contents',
+    pullRequest.ref.owner,
+    pullRequest.ref.repo,
+    pullRequest.ref.pullNumber,
+    pullRequest.baseSha,
+    pullRequest.headSha,
+    path,
+  ];
+}
+
+async function readFileChange(
+  pullRequest: PullRequestDetails,
+  file: PullRequestFile,
+): Promise<FileChange> {
+  const [oldContents, newContents] = await Promise.all([
+    readContents(pullRequest.ref, file.path, 'LEFT'),
+    readContents(pullRequest.ref, file.path, 'RIGHT'),
+  ]);
+
+  return {
+    id: file.path,
+    file,
+    oldFile: { name: file.path, contents: oldContents },
+    newFile: { name: file.path, contents: newContents },
+  };
+}
+
 function buildReadStatuses(pullRequest: Parameters<typeof readStateByPath>[0]) {
   return readStateByPath(pullRequest) as Record<string, ReviewStatus>;
+}
+
+interface InitialPullRequestLoad {
+  error: string | null;
+  inputUrl: string;
+  normalizedUrl: string | null;
+}
+
+function readInitialPullRequestLoad(): InitialPullRequestLoad {
+  const prParam = new URLSearchParams(window.location.search).get('pr');
+  if (prParam === null) return { error: null, inputUrl: '', normalizedUrl: null };
+
+  const normalizedUrl = normalizeGitHubPullRequestUrl(prParam);
+  if (parseGitHubPullRequestUrl(normalizedUrl) === null) {
+    return {
+      error: 'Enter a GitHub pull request URL.',
+      inputUrl: prParam,
+      normalizedUrl: null,
+    };
+  }
+
+  return { error: null, inputUrl: normalizedUrl, normalizedUrl };
 }
 
 export function HomePage(): React.ReactNode {
   const { diffIndicators, layout, lineDiffType, showLineNumbers, wrapLines } = useDiffSettings();
   const { pullRequest, selectedPath, setPullRequest, setSelectedPath } = useReviewSession();
-  const [pullRequestUrl, setPullRequestUrl] = useState('');
+  const queryClient = useQueryClient();
+  const [initialPullRequestLoad] = useState(readInitialPullRequestLoad);
+  const [pullRequestUrl, setPullRequestUrl] = useState(initialPullRequestLoad.inputUrl);
   const [selectedLines, setSelectedLines] = useState<SelectedLineRange | null>(null);
   const [commentsByFile, setCommentsByFile] = useState<Record<string, CommentAnnotation[]>>({});
   const [reviewStatuses, setReviewStatuses] = useState<Record<string, ReviewStatus>>({});
-  const [formError, setFormError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(initialPullRequestLoad.error);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const files = useMemo(() => pullRequest?.files ?? [], [pullRequest?.files]);
@@ -108,6 +164,14 @@ export function HomePage(): React.ReactNode {
     onError: (error) => setFormError(errorText(error)),
   });
 
+  useEffect(() => {
+    if (initialPullRequestLoad.normalizedUrl === null) return;
+    loadPullRequest.mutate(initialPullRequestLoad.normalizedUrl);
+    // Run once on page load. The mutation instance is intentionally omitted so
+    // a render after load does not re-fetch the same URL.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const updateState = useMutation({
     mutationFn: ({ path, state }: { path: string; state: ReviewStatus }) => {
       if (pullRequest === null) throw new Error('Pull request is required.');
@@ -116,31 +180,34 @@ export function HomePage(): React.ReactNode {
   });
 
   const contentQuery = useQuery({
-    queryKey: [
-      'file-contents',
-      pullRequest?.ref.owner,
-      pullRequest?.ref.repo,
-      pullRequest?.ref.pullNumber,
-      pullRequest?.baseSha,
-      pullRequest?.headSha,
-      currentFile?.path,
-    ],
+    queryKey:
+      pullRequest !== null && currentFile !== null
+        ? fileContentsQueryKey(pullRequest, currentFile.path)
+        : ['file-contents', 'empty'],
     queryFn: async (): Promise<FileChange> => {
       if (pullRequest === null || currentFile === null) throw new Error('File is required.');
-      const [oldContents, newContents] = await Promise.all([
-        readContents(pullRequest.ref, currentFile.path, 'LEFT'),
-        readContents(pullRequest.ref, currentFile.path, 'RIGHT'),
-      ]);
-
-      return {
-        id: currentFile.path,
-        file: currentFile,
-        oldFile: { name: currentFile.path, contents: oldContents },
-        newFile: { name: currentFile.path, contents: newContents },
-      };
+      return readFileChange(pullRequest, currentFile);
     },
     enabled: pullRequest !== null && currentFile !== null,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 30 * 60 * 1000,
   });
+
+  useEffect(() => {
+    if (pullRequest === null) return;
+
+    for (const index of [currentIndex - 1, currentIndex + 1]) {
+      const file = files[index];
+      if (!file) continue;
+
+      void queryClient.prefetchQuery({
+        queryKey: fileContentsQueryKey(pullRequest, file.path),
+        queryFn: () => readFileChange(pullRequest, file),
+        staleTime: Number.POSITIVE_INFINITY,
+        gcTime: 30 * 60 * 1000,
+      });
+    }
+  }, [currentIndex, files, pullRequest, queryClient]);
 
   const currentChange = contentQuery.data ?? null;
   const comments = currentFile === null ? [] : (commentsByFile[currentFile.path] ?? []);
@@ -392,12 +459,14 @@ export function HomePage(): React.ReactNode {
 
   function handleLoad(event: React.FormEvent<HTMLFormElement>): void {
     event.preventDefault();
-    const parsed = parseGitHubPullRequestUrl(pullRequestUrl);
+    const normalizedUrl = normalizeGitHubPullRequestUrl(pullRequestUrl);
+    const parsed = parseGitHubPullRequestUrl(normalizedUrl);
     if (parsed === null) {
       setFormError('Enter a GitHub pull request URL.');
       return;
     }
-    loadPullRequest.mutate(pullRequestUrl);
+    setPullRequestUrl(normalizedUrl);
+    loadPullRequest.mutate(normalizedUrl);
   }
 
   const status = currentFile === null ? 'unreviewed' : (reviewStatuses[currentFile.path] ?? 'unreviewed');

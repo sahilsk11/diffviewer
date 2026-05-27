@@ -6,6 +6,7 @@ class FileService:
     def __init__(self, github: GitHubClient) -> None:
         self._github = github
         self._tree_cache: dict[str, RepositoryTree] = {}
+        self._contents_cache: dict[str, str] = {}
 
     async def tree(self, owner: str, repo: str, head_sha: str) -> RepositoryTree:
         cache_key = f"{owner}/{repo}@{head_sha}"
@@ -52,10 +53,16 @@ class FileService:
                 status_code=404,
                 code="github_not_found",
             )
-        payload = await self._github.get_blob(owner, repo, entry.sha)
+        contents_key = f"{owner}/{repo}@{entry.sha}"
+        contents = self._contents_cache.get(contents_key)
+        if contents is None:
+            payload = await self._github.get_blob(owner, repo, entry.sha)
+            contents = decode_blob_contents(payload)
+            self._contents_cache[contents_key] = contents
+
         return FileContents(
             path=path,
             side=side,
             sha=entry.sha,
-            contents=decode_blob_contents(payload),
+            contents=contents,
         )

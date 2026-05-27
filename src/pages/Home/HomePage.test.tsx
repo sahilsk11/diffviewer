@@ -59,6 +59,7 @@ function setupFetch(): ReturnType<typeof vi.fn> {
 
 afterEach(() => {
   vi.unstubAllGlobals();
+  window.history.replaceState(null, '', '/');
 });
 
 describe('HomePage', () => {
@@ -94,5 +95,24 @@ describe('HomePage', () => {
       );
     });
     expect(screen.getByText('approved')).toBeInTheDocument();
+  });
+
+  it('loads a pull request from the pr URL parameter', async () => {
+    const fetchMock = setupFetch();
+    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+
+    renderWithProviders(<App />);
+
+    expect(await screen.findByText('PR title')).toBeInTheDocument();
+    expect(screen.getByLabelText('GitHub pull request URL')).toHaveValue(
+      'https://github.com/OWNER/REPO/pull/123',
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/pull-requests/load',
+      expect.objectContaining({
+        body: JSON.stringify({ url: 'https://github.com/OWNER/REPO/pull/123' }),
+        method: 'POST',
+      }),
+    );
   });
 });

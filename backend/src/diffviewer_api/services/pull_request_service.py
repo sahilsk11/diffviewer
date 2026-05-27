@@ -44,15 +44,16 @@ class PullRequestService:
     def __init__(self, github: GitHubClient, read_state_store: ReadStateStore) -> None:
         self._github = github
         self._read_state_store = read_state_store
+        self._pull_request_cache: dict[str, dict[str, Any]] = {}
+        self._files_cache: dict[str, list[dict[str, Any]]] = {}
 
-    async def load(self, url: str) -> PullRequestResponse:
+    async def load(self, url: str, *, force_refresh: bool = False) -> PullRequestResponse:
         ref = parse_pull_request_url(url)
-        pr_payload = await self._github.get_pull_request(ref.owner, ref.repo, ref.pull_number)
-        file_payloads = await self._github.list_pull_request_files(
-            ref.owner,
-            ref.repo,
-            ref.pull_number,
-        )
+        cache_key = self._cache_key(ref.owner, ref.repo, ref.pull_number)
+        pr_payload = await self._pull_request(ref.owner, ref.repo, ref.pull_number, force_refresh)
+        file_payloads = await self._files(ref.owner, ref.repo, ref.pull_number, force_refresh)
+        self._pull_request_cache[cache_key] = pr_payload
+        self._files_cache[cache_key] = file_payloads
         files = [map_pull_request_file(file_payload) for file_payload in file_payloads]
         read_state = self._read_state_store.get(ref.owner, ref.repo, ref.pull_number)
 
@@ -69,5 +70,39 @@ class PullRequestService:
         )
 
     async def files(self, owner: str, repo: str, pull_number: int) -> list[PullRequestFile]:
-        file_payloads = await self._github.list_pull_request_files(owner, repo, pull_number)
+        file_payloads = await self._files(owner, repo, pull_number)
         return [map_pull_request_file(file_payload) for file_payload in file_payloads]
+
+    async def _pull_request(
+        self,
+        owner: str,
+        repo: str,
+        pull_number: int,
+        force_refresh: bool = False,
+    ) -> dict[str, Any]:
+        cache_key = self._cache_key(owner, repo, pull_number)
+        if not force_refresh and cache_key in self._pull_request_cache:
+            return self._pull_request_cache[cache_key]
+
+        payload = await self._github.get_pull_request(owner, repo, pull_number)
+        self._pull_request_cache[cache_key] = payload
+        return payload
+
+    async def _files(
+        self,
+        owner: str,
+        repo: str,
+        pull_number: int,
+        force_refresh: bool = False,
+    ) -> list[dict[str, Any]]:
+        cache_key = self._cache_key(owner, repo, pull_number)
+        if not force_refresh and cache_key in self._files_cache:
+            return self._files_cache[cache_key]
+
+        payload = await self._github.list_pull_request_files(owner, repo, pull_number)
+        self._files_cache[cache_key] = payload
+        return payload
+
+    @staticmethod
+    def _cache_key(owner: str, repo: str, pull_number: int) -> str:
+        return f"{owner}/{repo}#{pull_number}"

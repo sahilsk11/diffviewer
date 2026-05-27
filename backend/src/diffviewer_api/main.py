@@ -9,6 +9,8 @@ from diffviewer_api.config import Settings, get_settings
 from diffviewer_api.routes import comments, files, health, pull_requests, review_state
 from diffviewer_api.services.file_service import FileService
 from diffviewer_api.services.github_client import GitHubClient, GitHubError
+from diffviewer_api.services.pull_request_service import PullRequestService
+from diffviewer_api.services.read_state_store import ReadStateStore
 from diffviewer_api.storage.sqlite import connect
 
 
@@ -25,6 +27,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.github_client = github_client
         app.state.db_connection = db_connection
         app.state.file_service = FileService(github_client)
+        app.state.pull_request_service = PullRequestService(
+            github_client,
+            ReadStateStore(db_connection),
+        )
         try:
             yield
         finally:
