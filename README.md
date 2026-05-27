@@ -61,22 +61,21 @@ default workflow:
 
 | Variable            | Purpose                                                                               | Default                 |
 | ------------------- | ------------------------------------------------------------------------------------- | ----------------------- |
-| `VITE_API_BASE_URL` | Absolute URL of the backend. Inlined into the client bundle at build time.            | `http://localhost:8000` |
+| `VITE_API_BASE_URL` | Optional absolute backend URL override. Leave empty for same-origin `/api` calls.    | empty                   |
 | `PORT`              | Port the dev / preview server binds to. `strictPort: true` — taken ports fail loudly. | `3000`                  |
 
-Resolution order: per-process env → `.env.local` → `.env` → defaults in
-`src/lib/env.ts`. Both `.env*` files are gitignored; copy `.env.example` to
-opt in.
+Resolution order: per-process env → `.env.local` → `.env` → same-origin
+defaults in `src/lib/env.ts`. Both `.env*` files are gitignored; copy
+`.env.example` to opt in.
 
 Because Vite exposes `VITE_*` values to browser code, never put secrets in them.
-Changing `VITE_API_BASE_URL` in production requires rebuilding the frontend. If
-a downstream app needs deploy-time backend switching, use a same-origin `/api`
-path, a reverse proxy, or a fetched runtime config file instead.
+Changing `VITE_API_BASE_URL` in production requires rebuilding the frontend.
+Keep it empty when the app is served behind the same host as the backend.
 
 ## Scripts
 
 ```bash
-npm run dev           # local dev server on :3000
+npm run dev           # local dev server on :3000; proxies /api to :8000
 npm run build         # tsc -b && vite build → dist/
 npm run preview       # serve the production build
 npm run typecheck     # tsc project-references
@@ -90,6 +89,36 @@ npm run format:check  # prettier --check . (CI uses this)
 
 CI runs install, typecheck, lint, format check, tests, and build against the
 Node version pinned in `.node-version`.
+
+## Backend
+
+The optional backend lives in `backend/` and exposes the GitHub-backed diff
+API used by this template.
+
+```bash
+cd backend
+uv sync
+uv run uvicorn diffviewer_api.main:create_app --factory --reload --port 8000
+uv run pytest
+uv run ruff check .
+uv run pyright
+```
+
+Backend configuration is read from environment variables or `backend/.env`.
+Copy `backend/.env.example` when local overrides are needed.
+
+| Variable                  | Purpose                                      | Default                            |
+| ------------------------- | -------------------------------------------- | ---------------------------------- |
+| `GITHUB_TOKEN` / `GH_TOKEN` | Server-side GitHub token for private repos. | local credential fallback          |
+| `GITHUB_API_BASE_URL`     | GitHub REST API base URL.                    | `https://api.github.com`           |
+| `DIFFVIEWER_DB_PATH`      | SQLite path for per-file review state.       | `~/.diffviewer/diffviewer.sqlite3` |
+| `DIFFVIEWER_CORS_ORIGINS` | Comma-separated allowed frontend origins.    | `http://localhost:3000`            |
+
+Do not expose GitHub tokens as `VITE_*` variables. They belong only in the
+backend process. If no token env var is set, local development checks common
+machine credentials in this order: `/etc/<user>/secrets.env`,
+`/etc/sas/secrets.env`, `/etc/sas-system/secrets.env`,
+`~/.config/gh/hosts.yml`, then `~/.git-credentials`.
 
 ## Lint posture
 

@@ -9,6 +9,6 @@ describe('App', () => {
     renderWithProviders(<App />);
 
     expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument();
-    expect(screen.getByLabelText('Example code diff')).toBeInTheDocument();
+    expect(screen.getByLabelText('Pull request diff')).toBeInTheDocument();
   });
 });

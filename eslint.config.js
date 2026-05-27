@@ -21,7 +21,14 @@ import tseslint from 'typescript-eslint';
 //     `import-x/no-cycle` it physically prevents the "1000-line god
 //     component" pattern that legacy frontends grow into.
 export default defineConfig([
-  globalIgnores(['dist', 'node_modules']),
+  globalIgnores([
+    'dist',
+    'node_modules',
+    'backend/.venv',
+    'backend/.pytest_cache',
+    'backend/.ruff_cache',
+    'backend/**/__pycache__',
+  ]),
   {
     files: ['**/*.{ts,tsx}'],
     extends: [

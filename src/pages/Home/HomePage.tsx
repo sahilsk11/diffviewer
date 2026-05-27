@@ -1,106 +1,46 @@
 import {
   type AnnotationSide,
   type DiffLineAnnotation,
-  type FileContents,
+  type FileContents as DiffFileContents,
   type SelectedLineRange,
   type SelectionSide,
   MultiFileDiff,
   Virtualizer,
 } from '@pierre/diffs/react';
-import { ChevronLeft, CircleCheckBig, Flag, SkipForward } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { ChevronLeft, CircleCheckBig, ExternalLink, Flag, SkipForward } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { isApiError } from '@/lib/api';
 import { useDiffSettings } from '@/lib/diff-settings';
+import { diffviewerApi } from '@/lib/diffviewer-api';
+import { parseGitHubPullRequestUrl } from '@/lib/github-pr';
+import { readStateByPath, useReviewSession } from '@/lib/review-state';
+import type { FileSide, PullRequestFile, ReviewStatus } from '@/lib/types';
 
 interface FileChange {
   id: string;
-  newFile: FileContents;
-  oldFile: FileContents;
+  file: PullRequestFile;
+  newFile: DiffFileContents;
+  oldFile: DiffFileContents;
 }
-
-type ReviewStatus = 'approved' | 'flagged' | 'skipped';
 
 interface CommentMetadata {
   id: string;
   author: string;
   body: string;
   draft: string;
+  error: string | null;
+  postedUrl: string | null;
   state: 'draft' | 'posted';
+  submitting: boolean;
 }
 
 type CommentAnnotation = DiffLineAnnotation<CommentMetadata>;
-
-const fileChanges: FileChange[] = [
-  {
-    id: 'summary',
-    oldFile: {
-      name: 'src/review/summary.ts',
-      contents: `type Review = {
-  title: string;
-  files: number;
-};
-
-export function label(r: Review): string {
-  return r.title;
-}
-`,
-    },
-    newFile: {
-      name: 'src/review/summary.ts',
-      contents: `type Review = {
-  title: string;
-  files: number;
-  needsTests: boolean;
-};
-
-export function label(r: Review): string {
-  const status = r.needsTests ? 'tests' : 'ok';
-
-  return \`\${r.title}: \${status}\`;
-}
-`,
-    },
-  },
-  {
-    id: 'routes',
-    oldFile: {
-      name: 'src/review/routes.ts',
-      contents: `export const routes = [
-  '/pulls',
-  '/settings',
-];
-`,
-    },
-    newFile: {
-      name: 'src/review/routes.ts',
-      contents: `export const routes = [
-  '/pulls',
-  '/files',
-  '/settings',
-];
-`,
-    },
-  },
-  {
-    id: 'status',
-    oldFile: {
-      name: 'src/review/status.ts',
-      contents: `export function statusLabel(done: boolean): string {
-  return done ? 'Done' : 'Open';
-}
-`,
-    },
-    newFile: {
-      name: 'src/review/status.ts',
-      contents: `export function statusLabel(done: boolean): string {
-  return done ? 'Approved' : 'Open';
-}
-`,
-    },
-  },
-];
 
 function annotationKey(side: AnnotationSide, lineNumber: number): string {
   return `${side}:${lineNumber}`;
@@ -110,31 +50,126 @@ function sideToSelectionSide(side: AnnotationSide): SelectionSide {
   return side;
 }
 
+function annotationSideToFileSide(side: AnnotationSide): FileSide {
+  return side === 'deletions' ? 'LEFT' : 'RIGHT';
+}
+
+function errorText(error: unknown): string {
+  if (isApiError(error)) return error.message;
+  if (error instanceof Error) return error.message;
+  return 'Request failed.';
+}
+
+async function readContents(
+  ref: NonNullable<ReturnType<typeof parseGitHubPullRequestUrl>>,
+  path: string,
+  side: FileSide,
+): Promise<string> {
+  try {
+    return (await diffviewerApi.getFileContents(ref, path, side)).contents;
+  } catch (error) {
+    if (isApiError(error) && error.status === 404) return '';
+    throw error;
+  }
+}
+
+function buildReadStatuses(pullRequest: Parameters<typeof readStateByPath>[0]) {
+  return readStateByPath(pullRequest) as Record<string, ReviewStatus>;
+}
+
 export function HomePage(): React.ReactNode {
   const { diffIndicators, layout, lineDiffType, showLineNumbers, wrapLines } = useDiffSettings();
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const { pullRequest, selectedPath, setPullRequest, setSelectedPath } = useReviewSession();
+  const [pullRequestUrl, setPullRequestUrl] = useState('');
   const [selectedLines, setSelectedLines] = useState<SelectedLineRange | null>(null);
   const [commentsByFile, setCommentsByFile] = useState<Record<string, CommentAnnotation[]>>({});
   const [reviewStatuses, setReviewStatuses] = useState<Record<string, ReviewStatus>>({});
-  const currentChange = fileChanges[currentIndex];
-  const comments = commentsByFile[currentChange.id] ?? [];
+  const [formError, setFormError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const files = useMemo(() => pullRequest?.files ?? [], [pullRequest?.files]);
+  const currentIndex = useMemo(() => {
+    const selectedIndex = files.findIndex((file) => file.path === selectedPath);
+    return selectedIndex >= 0 ? selectedIndex : 0;
+  }, [files, selectedPath]);
+  const currentFile = files[currentIndex] ?? null;
+
+  const loadPullRequest = useMutation({
+    mutationFn: diffviewerApi.loadPullRequest,
+    onSuccess: (loadedPullRequest) => {
+      setPullRequest(loadedPullRequest);
+      setReviewStatuses(buildReadStatuses(loadedPullRequest));
+      setSelectedPath(loadedPullRequest.files[0]?.path ?? null);
+      setSelectedLines(null);
+      setCommentsByFile({});
+      setFormError(null);
+      setActionError(null);
+    },
+    onError: (error) => setFormError(errorText(error)),
+  });
+
+  const updateState = useMutation({
+    mutationFn: ({ path, state }: { path: string; state: ReviewStatus }) => {
+      if (pullRequest === null) throw new Error('Pull request is required.');
+      return diffviewerApi.updateFileState(pullRequest.ref, path, state);
+    },
+  });
+
+  const contentQuery = useQuery({
+    queryKey: [
+      'file-contents',
+      pullRequest?.ref.owner,
+      pullRequest?.ref.repo,
+      pullRequest?.ref.pullNumber,
+      pullRequest?.baseSha,
+      pullRequest?.headSha,
+      currentFile?.path,
+    ],
+    queryFn: async (): Promise<FileChange> => {
+      if (pullRequest === null || currentFile === null) throw new Error('File is required.');
+      const [oldContents, newContents] = await Promise.all([
+        readContents(pullRequest.ref, currentFile.path, 'LEFT'),
+        readContents(pullRequest.ref, currentFile.path, 'RIGHT'),
+      ]);
+
+      return {
+        id: currentFile.path,
+        file: currentFile,
+        oldFile: { name: currentFile.path, contents: oldContents },
+        newFile: { name: currentFile.path, contents: newContents },
+      };
+    },
+    enabled: pullRequest !== null && currentFile !== null,
+  });
+
+  const currentChange = contentQuery.data ?? null;
+  const comments = currentFile === null ? [] : (commentsByFile[currentFile.path] ?? []);
 
   const goToPrevious = useCallback((): void => {
-    setCurrentIndex((index) => Math.max(0, index - 1));
+    const nextIndex = Math.max(0, currentIndex - 1);
+    setSelectedPath(files[nextIndex]?.path ?? null);
     setSelectedLines(null);
-  }, []);
+  }, [currentIndex, files, setSelectedPath]);
 
   const goToNext = useCallback((): void => {
-    setCurrentIndex((index) => Math.min(fileChanges.length - 1, index + 1));
+    const nextIndex = Math.min(files.length - 1, currentIndex + 1);
+    setSelectedPath(files[nextIndex]?.path ?? null);
     setSelectedLines(null);
-  }, []);
+  }, [currentIndex, files, setSelectedPath]);
 
   const markCurrent = useCallback(
-    (status: ReviewStatus): void => {
-      setReviewStatuses((current) => ({ ...current, [currentChange.id]: status }));
-      goToNext();
+    async (status: ReviewStatus): Promise<void> => {
+      if (currentFile === null) return;
+      try {
+        await updateState.mutateAsync({ path: currentFile.path, state: status });
+        setReviewStatuses((current) => ({ ...current, [currentFile.path]: status }));
+        setActionError(null);
+        goToNext();
+      } catch (error) {
+        setActionError(errorText(error));
+      }
     },
-    [currentChange.id, goToNext],
+    [currentFile, goToNext, updateState],
   );
 
   useEffect(() => {
@@ -150,13 +185,13 @@ export function HomePage(): React.ReactNode {
         goToPrevious();
       } else if (key === 'x') {
         event.preventDefault();
-        markCurrent('flagged');
+        void markCurrent('flagged');
       } else if (key === 'a') {
         event.preventDefault();
-        markCurrent('approved');
+        void markCurrent('approved');
       } else if (key === 's') {
         event.preventDefault();
-        markCurrent('skipped');
+        void markCurrent('skipped');
       }
     }
 
@@ -185,23 +220,22 @@ export function HomePage(): React.ReactNode {
         annotationSide: AnnotationSide;
         lineNumber: number;
       }) => {
+        if (currentFile === null) return;
         const side = sideToSelectionSide(annotationSide);
 
         setSelectedLines({ start: lineNumber, side, end: lineNumber, endSide: side });
         setCommentsByFile((currentByFile) => {
-          const current = currentByFile[currentChange.id] ?? [];
+          const current = currentByFile[currentFile.path] ?? [];
           const key = annotationKey(annotationSide, lineNumber);
           const existing = current.find(
             (comment) => annotationKey(comment.side, comment.lineNumber) === key,
           );
 
-          if (existing !== undefined) {
-            return currentByFile;
-          }
+          if (existing !== undefined) return currentByFile;
 
           return {
             ...currentByFile,
-            [currentChange.id]: [
+            [currentFile.path]: [
               ...current,
               {
                 side: annotationSide,
@@ -211,7 +245,10 @@ export function HomePage(): React.ReactNode {
                   author: 'You',
                   body: '',
                   draft: '',
+                  error: null,
+                  postedUrl: null,
                   state: 'draft',
+                  submitting: false,
                 },
               },
             ],
@@ -220,42 +257,75 @@ export function HomePage(): React.ReactNode {
       },
       onLineSelected: setSelectedLines,
     }),
-    [currentChange.id, diffIndicators, layout, lineDiffType, showLineNumbers, wrapLines],
+    [currentFile, diffIndicators, layout, lineDiffType, showLineNumbers, wrapLines],
   );
 
   function updateDraft(id: string, draft: string): void {
+    if (currentFile === null) return;
     setCommentsByFile((currentByFile) => ({
       ...currentByFile,
-      [currentChange.id]: (currentByFile[currentChange.id] ?? []).map((comment) =>
+      [currentFile.path]: (currentByFile[currentFile.path] ?? []).map((comment) =>
         comment.metadata.id === id
-          ? { ...comment, metadata: { ...comment.metadata, draft } }
+          ? { ...comment, metadata: { ...comment.metadata, draft, error: null } }
           : comment,
       ),
     }));
   }
 
-  function saveComment(id: string): void {
+  async function saveComment(annotation: CommentAnnotation): Promise<void> {
+    if (pullRequest === null || currentFile === null) return;
+    const body = annotation.metadata.draft.trim();
+    if (body.length === 0) return;
+
+    const side = annotationSideToFileSide(annotation.side);
+    const sameSideSelection =
+      selectedLines?.side === annotation.side && selectedLines.endSide === annotation.side;
+    const startLine = sameSideSelection
+      ? Math.min(selectedLines.start, selectedLines.end)
+      : annotation.lineNumber;
+    const endLine = sameSideSelection
+      ? Math.max(selectedLines.start, selectedLines.end)
+      : annotation.lineNumber;
+
+    patchComment(annotation.metadata.id, { submitting: true, error: null });
+
+    try {
+      const posted = await diffviewerApi.postComment(pullRequest.ref, {
+        body,
+        path: currentFile.path,
+        line: endLine,
+        side,
+        ...(startLine !== endLine ? { startLine, startSide: side } : {}),
+      });
+      patchComment(annotation.metadata.id, {
+        body: posted.body,
+        draft: posted.body,
+        postedUrl: posted.htmlUrl,
+        state: 'posted',
+        submitting: false,
+      });
+    } catch (error) {
+      patchComment(annotation.metadata.id, { error: errorText(error), submitting: false });
+    }
+  }
+
+  function patchComment(id: string, patch: Partial<CommentMetadata>): void {
+    if (currentFile === null) return;
     setCommentsByFile((currentByFile) => ({
       ...currentByFile,
-      [currentChange.id]: (currentByFile[currentChange.id] ?? []).map((comment) =>
+      [currentFile.path]: (currentByFile[currentFile.path] ?? []).map((comment) =>
         comment.metadata.id === id
-          ? {
-              ...comment,
-              metadata: {
-                ...comment.metadata,
-                body: comment.metadata.draft.trim(),
-                state: 'posted',
-              },
-            }
+          ? { ...comment, metadata: { ...comment.metadata, ...patch } }
           : comment,
       ),
     }));
   }
 
   function removeComment(id: string): void {
+    if (currentFile === null) return;
     setCommentsByFile((currentByFile) => ({
       ...currentByFile,
-      [currentChange.id]: (currentByFile[currentChange.id] ?? []).filter(
+      [currentFile.path]: (currentByFile[currentFile.path] ?? []).filter(
         (comment) => comment.metadata.id !== id,
       ),
     }));
@@ -275,9 +345,19 @@ export function HomePage(): React.ReactNode {
         {metadata.state === 'posted' ? (
           <div className="space-y-3">
             <p className="text-sm leading-6 text-foreground">{metadata.body}</p>
-            <Button variant="outline" size="sm" onClick={() => removeComment(metadata.id)}>
-              Resolve
-            </Button>
+            <div className="flex flex-wrap justify-end gap-2">
+              {metadata.postedUrl !== null ? (
+                <Button variant="outline" size="sm" asChild>
+                  <a href={metadata.postedUrl} target="_blank" rel="noreferrer">
+                    <ExternalLink className="size-4" />
+                    Open
+                  </a>
+                </Button>
+              ) : null}
+              <Button variant="outline" size="sm" onClick={() => removeComment(metadata.id)}>
+                Resolve
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="space-y-3">
@@ -287,14 +367,19 @@ export function HomePage(): React.ReactNode {
               value={metadata.draft}
               onChange={(event) => updateDraft(metadata.id, event.target.value)}
             />
+            {metadata.error !== null ? (
+              <p className="text-xs text-danger" role="alert">
+                {metadata.error}
+              </p>
+            ) : null}
             <div className="flex justify-end gap-2">
               <Button variant="ghost" size="sm" onClick={() => removeComment(metadata.id)}>
                 Cancel
               </Button>
               <Button
                 size="sm"
-                disabled={metadata.draft.trim().length === 0}
-                onClick={() => saveComment(metadata.id)}
+                disabled={metadata.draft.trim().length === 0 || metadata.submitting}
+                onClick={() => void saveComment(annotation)}
               >
                 Comment
               </Button>
@@ -305,29 +390,95 @@ export function HomePage(): React.ReactNode {
     );
   }
 
+  function handleLoad(event: React.FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    const parsed = parseGitHubPullRequestUrl(pullRequestUrl);
+    if (parsed === null) {
+      setFormError('Enter a GitHub pull request URL.');
+      return;
+    }
+    loadPullRequest.mutate(pullRequestUrl);
+  }
+
+  const status = currentFile === null ? 'unreviewed' : (reviewStatuses[currentFile.path] ?? 'unreviewed');
+
   return (
-    <section className="flex min-h-[calc(100vh-3.5rem)] w-full flex-col items-center justify-center gap-4 px-6 py-8">
-      <div className="flex w-full max-w-5xl items-center justify-between px-1 text-xs text-muted-foreground">
+    <section className="flex min-h-[calc(100vh-3.5rem)] w-full flex-col gap-4 px-4 py-5 sm:px-6">
+      <form
+        className="flex w-full flex-col gap-2 lg:flex-row lg:items-center"
+        onSubmit={handleLoad}
+        aria-label="Load pull request"
+      >
+        <Input
+          value={pullRequestUrl}
+          onChange={(event) => setPullRequestUrl(event.target.value)}
+          placeholder="https://github.com/OWNER/REPO/pull/123"
+          aria-label="GitHub pull request URL"
+        />
+        <Button type="submit" className="h-11 shrink-0" disabled={loadPullRequest.isPending}>
+          Load
+        </Button>
+      </form>
+
+      {formError !== null ? (
+        <p className="text-sm text-danger" role="alert">
+          {formError}
+        </p>
+      ) : null}
+
+      <div className="flex w-full items-center justify-between gap-3 text-xs text-muted-foreground">
         <span>
-          {currentIndex + 1} / {fileChanges.length}
+          {files.length === 0 ? '0 / 0' : `${currentIndex + 1} / ${files.length}`}
         </span>
-        <span>{reviewStatuses[currentChange.id] ?? 'unreviewed'}</span>
+        <div className="flex min-w-0 items-center gap-2">
+          {pullRequest !== null ? (
+            <a
+              className="truncate text-foreground underline-offset-4 hover:underline"
+              href={pullRequest.htmlUrl}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {pullRequest.title}
+            </a>
+          ) : null}
+          <Badge variant={status === 'approved' ? 'success' : 'outline'}>{status}</Badge>
+        </div>
       </div>
 
+      {actionError !== null ? (
+        <p className="text-sm text-danger" role="alert">
+          {actionError}
+        </p>
+      ) : null}
+
       <div
-        className="h-[68vh] w-full max-w-5xl overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
-        aria-label="Example code diff"
+        className="min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
+        aria-label="Pull request diff"
       >
-        <Virtualizer className="h-full" contentClassName="min-w-full">
-          <MultiFileDiff
-            oldFile={currentChange.oldFile}
-            newFile={currentChange.newFile}
-            options={options}
-            lineAnnotations={comments}
-            selectedLines={selectedLines}
-            renderAnnotation={renderAnnotation}
-          />
-        </Virtualizer>
+        {pullRequest === null ? (
+          <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+            No pull request loaded
+          </div>
+        ) : contentQuery.isError ? (
+          <div className="flex h-full items-center justify-center px-6 text-sm text-danger">
+            {errorText(contentQuery.error)}
+          </div>
+        ) : contentQuery.isLoading || currentChange === null ? (
+          <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+            Loading diff
+          </div>
+        ) : (
+          <Virtualizer className="h-full" contentClassName="min-w-full">
+            <MultiFileDiff
+              oldFile={currentChange.oldFile}
+              newFile={currentChange.newFile}
+              options={options}
+              lineAnnotations={comments}
+              selectedLines={selectedLines}
+              renderAnnotation={renderAnnotation}
+            />
+          </Virtualizer>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-2">
@@ -335,7 +486,7 @@ export function HomePage(): React.ReactNode {
           variant="outline"
           className="h-11 w-32"
           onClick={goToPrevious}
-          disabled={currentIndex === 0}
+          disabled={currentIndex === 0 || files.length === 0}
         >
           <ChevronLeft className="size-4 shrink-0" />
           Prev
@@ -346,7 +497,8 @@ export function HomePage(): React.ReactNode {
         <Button
           variant="outline"
           className="h-11 w-32 border-danger/30 bg-danger/10 text-danger hover:border-danger/50 hover:bg-danger/15"
-          onClick={() => markCurrent('flagged')}
+          onClick={() => void markCurrent('flagged')}
+          disabled={currentFile === null || updateState.isPending}
         >
           <Flag className="size-4 shrink-0" />
           Flag
@@ -355,7 +507,8 @@ export function HomePage(): React.ReactNode {
         <Button
           variant="outline"
           className="h-11 w-32 border-success/30 bg-success/10 text-success hover:border-success/50 hover:bg-success/15"
-          onClick={() => markCurrent('approved')}
+          onClick={() => void markCurrent('approved')}
+          disabled={currentFile === null || updateState.isPending}
         >
           <CircleCheckBig className="size-4 shrink-0" />
           Approve
@@ -366,7 +519,8 @@ export function HomePage(): React.ReactNode {
         <Button
           variant="outline"
           className="h-11 w-32 border-warn/30 bg-warn/10 text-warn hover:border-warn/50 hover:bg-warn/15"
-          onClick={() => markCurrent('skipped')}
+          onClick={() => void markCurrent('skipped')}
+          disabled={currentFile === null || updateState.isPending}
         >
           <SkipForward className="size-4 shrink-0" />
           Skip

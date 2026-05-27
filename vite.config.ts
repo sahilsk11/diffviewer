@@ -8,16 +8,25 @@ import { defineConfig } from 'vitest/config';
 // incrementing — test runners rely on the port they picked actually
 // being the port the server bound to.
 //
-// The backend URL is read by app code via import.meta.env.VITE_API_BASE_URL.
-// Vite inlines VITE_* values into the client bundle, so production changes
-// require a rebuild. Use a same-origin /api path or a fetched runtime config
-// file if a downstream app needs deploy-time backend switching.
+// The frontend calls same-origin /api paths by default. In dev, Vite proxies
+// those to the FastAPI backend so local and preview usage share one browser
+// origin. API_PORT can override the backend port without rebuilding.
 const port = Number(process.env.PORT ?? 3000);
+const apiPort = Number(process.env.API_PORT ?? 8000);
+const apiTarget = `http://127.0.0.1:${apiPort}`;
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { tsconfigPaths: true },
-  server: { port, strictPort: true, host: true },
+  server: {
+    port,
+    strictPort: true,
+    host: true,
+    proxy: {
+      '/api': { target: apiTarget, changeOrigin: true },
+      '/healthz': { target: apiTarget, changeOrigin: true },
+    },
+  },
   preview: { port, strictPort: true, host: true },
   test: {
     environment: 'jsdom',

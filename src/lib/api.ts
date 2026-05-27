@@ -38,6 +38,9 @@ export function apiUrl(path: string): string {
   if (!path.startsWith('/')) {
     throw new Error(`api path must start with "/": ${path}`);
   }
+  if (apiBaseUrl === '') {
+    return path;
+  }
   const base = apiBaseUrl.endsWith('/') ? apiBaseUrl.slice(0, -1) : apiBaseUrl;
   return `${base}${path}`;
 }
@@ -78,14 +81,30 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
 
   if (!res.ok) {
-    const message =
-      parsed && typeof parsed === 'object' && 'error' in parsed && typeof parsed.error === 'string'
-        ? parsed.error
-        : `${res.status} ${res.statusText}`;
+    const message = errorMessage(parsed) ?? `${res.status} ${res.statusText}`;
     throw new ApiErrorImpl(message, res.status, parsed);
   }
 
   return parsed as T;
+}
+
+function errorMessage(parsed: unknown): string | null {
+  if (parsed === null || typeof parsed !== 'object') return null;
+  if ('error' in parsed && typeof parsed.error === 'string') return parsed.error;
+
+  if ('detail' in parsed) {
+    const { detail } = parsed;
+    if (
+      detail &&
+      typeof detail === 'object' &&
+      'error' in detail &&
+      typeof detail.error === 'string'
+    ) {
+      return detail.error;
+    }
+  }
+
+  return null;
 }
 
 async function requestStream(path: string, body: unknown, signal?: AbortSignal): Promise<Response> {
