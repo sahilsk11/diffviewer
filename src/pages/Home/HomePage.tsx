@@ -583,7 +583,7 @@ export function HomePage(): React.ReactNode {
   }
 
   return (
-    <section className="flex min-h-screen w-full flex-col gap-5 px-4 pt-8 sm:px-6">
+    <section className="flex min-h-screen w-full flex-col gap-5 px-4 pb-4 pt-9 sm:px-6">
       {formError !== null ? (
         <p className="text-sm text-danger" role="alert">
           {formError}
@@ -613,7 +613,7 @@ export function HomePage(): React.ReactNode {
       ) : null}
 
       <div
-        className="mb-24 min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
+        className="mb-28 min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
         aria-label="Pull request diff"
       >
         {pullRequest === null ? (
@@ -644,7 +644,7 @@ export function HomePage(): React.ReactNode {
         )}
       </div>
 
-      <div className="sticky bottom-0 z-30 -mx-4 flex min-h-20 flex-wrap items-center justify-center gap-x-2 gap-y-3 border-t border-border bg-background/90 px-4 py-4 shadow-2xl shadow-black/40 backdrop-blur sm:-mx-6 sm:px-6">
+      <div className="sticky bottom-4 z-30 -mx-4 flex min-h-20 flex-wrap items-center justify-center gap-x-2 gap-y-3 border border-border bg-background/90 px-4 py-4 shadow-2xl shadow-black/40 backdrop-blur sm:-mx-6 sm:px-6">
         <Button
           variant="outline"
           className="h-10 w-32"
