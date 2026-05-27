@@ -1,4 +1,5 @@
 import { PanelLeftOpen } from 'lucide-react';
+import { type CSSProperties } from 'react';
 import { useState } from 'react';
 import { Outlet } from 'react-router';
 
@@ -43,7 +44,14 @@ export function RootLayout(): React.ReactNode {
                 </aside>
               )}
             </div>
-            <main className="min-w-0 lg:h-screen lg:overflow-y-auto">
+            <main
+              className="min-w-0 lg:h-screen lg:overflow-y-auto"
+              style={
+                {
+                  '--review-sidebar-width': isSidebarOpen ? '21rem' : '3.5rem',
+                } as CSSProperties
+              }
+            >
               <Outlet />
             </main>
           </div>
