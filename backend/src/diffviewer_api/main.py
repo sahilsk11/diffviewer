@@ -1,9 +1,11 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from diffviewer_api.config import Settings, get_settings
 from diffviewer_api.routes import comments, files, health, pull_requests, review_state
@@ -50,6 +52,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(files.router)
     app.include_router(review_state.router)
     app.include_router(comments.router)
+
+    static_dir = Path(__file__).resolve().parents[3] / "dist"
+    if static_dir.exists():
+        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
 
     @app.exception_handler(GitHubError)
     async def github_error_handler(  # pyright: ignore[reportUnusedFunction]
