@@ -8,7 +8,7 @@ import {
 } from '@/lib/diff-settings';
 
 export function DiffSettingsProvider({ children }: { children: React.ReactNode }): React.ReactNode {
-  const [layout, setLayout] = useState<DiffLayout>('unified');
+  const [layout, setLayout] = useState<DiffLayout>('split');
   const [diffIndicators, setDiffIndicators] = useState<DiffIndicators>('none');
   const [lineDiffType, setLineDiffType] = useState<LineDiffTypes>('word');
   const [wrapLines, setWrapLines] = useState(false);
