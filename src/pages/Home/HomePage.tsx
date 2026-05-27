@@ -482,7 +482,7 @@ export function HomePage(): React.ReactNode {
             Loading diff
           </div>
         ) : (
-          <Virtualizer className="h-full" contentClassName="min-w-full">
+          <Virtualizer key={currentChange.id} className="h-full" contentClassName="min-w-full">
             <MultiFileDiff
               oldFile={currentChange.oldFile}
               newFile={currentChange.newFile}
