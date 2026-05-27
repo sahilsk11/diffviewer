@@ -10,13 +10,13 @@ export function RootLayout(): React.ReactNode {
   return (
     <DiffSettingsProvider>
       <ReviewSessionProvider>
-        <div className="grid min-h-full grid-cols-1 bg-background text-foreground lg:grid-cols-[21rem_minmax(0,1fr)]">
-          <div className="min-h-[22rem] lg:h-screen lg:min-h-0">
-            <ProjectTreePanel />
-          </div>
-          <div className="flex min-w-0 flex-col">
-            <Navbar />
-            <main className="flex-1">
+        <div className="flex min-h-full flex-col bg-background text-foreground">
+          <Navbar />
+          <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[21rem_minmax(0,1fr)]">
+            <div className="min-h-[22rem] lg:h-[calc(100vh-3.5rem)] lg:min-h-0">
+              <ProjectTreePanel />
+            </div>
+            <main className="min-w-0">
               <Outlet />
             </main>
           </div>

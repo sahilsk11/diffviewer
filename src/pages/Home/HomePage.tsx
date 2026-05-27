@@ -11,15 +11,13 @@ import { type QueryKey, useMutation, useQuery, useQueryClient } from '@tanstack/
 import { ChevronLeft, CircleCheckBig, ExternalLink, Flag, SkipForward } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { isApiError } from '@/lib/api';
 import { useDiffSettings } from '@/lib/diff-settings';
 import { diffviewerApi } from '@/lib/diffviewer-api';
 import { normalizeGitHubPullRequestUrl, parseGitHubPullRequestUrl } from '@/lib/github-pr';
-import { readStateByPath, useReviewSession } from '@/lib/review-state';
+import { useReviewSession } from '@/lib/review-state';
 import type { FileSide, PullRequestDetails, PullRequestFile, ReviewStatus } from '@/lib/types';
 
 interface FileChange {
@@ -73,10 +71,7 @@ async function readContents(
   }
 }
 
-function fileContentsQueryKey(
-  pullRequest: PullRequestDetails,
-  path: string,
-): QueryKey {
+function fileContentsQueryKey(pullRequest: PullRequestDetails, path: string): QueryKey {
   return [
     'file-contents',
     pullRequest.ref.owner,
@@ -105,30 +100,24 @@ async function readFileChange(
   };
 }
 
-function buildReadStatuses(pullRequest: Parameters<typeof readStateByPath>[0]) {
-  return readStateByPath(pullRequest) as Record<string, ReviewStatus>;
-}
-
 interface InitialPullRequestLoad {
   error: string | null;
-  inputUrl: string;
   normalizedUrl: string | null;
 }
 
 function readInitialPullRequestLoad(): InitialPullRequestLoad {
   const prParam = new URLSearchParams(window.location.search).get('pr');
-  if (prParam === null) return { error: null, inputUrl: '', normalizedUrl: null };
+  if (prParam === null) return { error: null, normalizedUrl: null };
 
   const normalizedUrl = normalizeGitHubPullRequestUrl(prParam);
   if (parseGitHubPullRequestUrl(normalizedUrl) === null) {
     return {
       error: 'Enter a GitHub pull request URL.',
-      inputUrl: prParam,
       normalizedUrl: null,
     };
   }
 
-  return { error: null, inputUrl: normalizedUrl, normalizedUrl };
+  return { error: null, normalizedUrl };
 }
 
 export function HomePage(): React.ReactNode {
@@ -136,10 +125,8 @@ export function HomePage(): React.ReactNode {
   const { pullRequest, selectedPath, setPullRequest, setSelectedPath } = useReviewSession();
   const queryClient = useQueryClient();
   const [initialPullRequestLoad] = useState(readInitialPullRequestLoad);
-  const [pullRequestUrl, setPullRequestUrl] = useState(initialPullRequestLoad.inputUrl);
   const [selectedLines, setSelectedLines] = useState<SelectedLineRange | null>(null);
   const [commentsByFile, setCommentsByFile] = useState<Record<string, CommentAnnotation[]>>({});
-  const [reviewStatuses, setReviewStatuses] = useState<Record<string, ReviewStatus>>({});
   const [formError, setFormError] = useState<string | null>(initialPullRequestLoad.error);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -154,7 +141,6 @@ export function HomePage(): React.ReactNode {
     mutationFn: diffviewerApi.loadPullRequest,
     onSuccess: (loadedPullRequest) => {
       setPullRequest(loadedPullRequest);
-      setReviewStatuses(buildReadStatuses(loadedPullRequest));
       setSelectedPath(loadedPullRequest.files[0]?.path ?? null);
       setSelectedLines(null);
       setCommentsByFile({});
@@ -229,7 +215,6 @@ export function HomePage(): React.ReactNode {
       if (currentFile === null) return;
       try {
         await updateState.mutateAsync({ path: currentFile.path, state: status });
-        setReviewStatuses((current) => ({ ...current, [currentFile.path]: status }));
         setActionError(null);
         goToNext();
       } catch (error) {
@@ -457,61 +442,21 @@ export function HomePage(): React.ReactNode {
     );
   }
 
-  function handleLoad(event: React.FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    const normalizedUrl = normalizeGitHubPullRequestUrl(pullRequestUrl);
-    const parsed = parseGitHubPullRequestUrl(normalizedUrl);
-    if (parsed === null) {
-      setFormError('Enter a GitHub pull request URL.');
-      return;
-    }
-    setPullRequestUrl(normalizedUrl);
-    loadPullRequest.mutate(normalizedUrl);
-  }
-
-  const status = currentFile === null ? 'unreviewed' : (reviewStatuses[currentFile.path] ?? 'unreviewed');
-
   return (
     <section className="flex min-h-[calc(100vh-3.5rem)] w-full flex-col gap-4 px-4 py-5 sm:px-6">
-      <form
-        className="flex w-full flex-col gap-2 lg:flex-row lg:items-center"
-        onSubmit={handleLoad}
-        aria-label="Load pull request"
-      >
-        <Input
-          value={pullRequestUrl}
-          onChange={(event) => setPullRequestUrl(event.target.value)}
-          placeholder="https://github.com/OWNER/REPO/pull/123"
-          aria-label="GitHub pull request URL"
-        />
-        <Button type="submit" className="h-11 shrink-0" disabled={loadPullRequest.isPending}>
-          Load
-        </Button>
-      </form>
-
       {formError !== null ? (
         <p className="text-sm text-danger" role="alert">
           {formError}
         </p>
       ) : null}
 
-      <div className="flex w-full items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span>
+      <div className="flex w-full items-start justify-between gap-4">
+        <h1 className="min-w-0 truncate text-base font-semibold text-foreground">
+          {pullRequest?.title ?? 'No pull request loaded'}
+        </h1>
+        <span className="shrink-0 rounded-md border border-border bg-elevated px-2.5 py-1 text-xs font-medium text-muted-foreground">
           {files.length === 0 ? '0 / 0' : `${currentIndex + 1} / ${files.length}`}
         </span>
-        <div className="flex min-w-0 items-center gap-2">
-          {pullRequest !== null ? (
-            <a
-              className="truncate text-foreground underline-offset-4 hover:underline"
-              href={pullRequest.htmlUrl}
-              target="_blank"
-              rel="noreferrer"
-            >
-              {pullRequest.title}
-            </a>
-          ) : null}
-          <Badge variant={status === 'approved' ? 'success' : 'outline'}>{status}</Badge>
-        </div>
       </div>
 
       {actionError !== null ? (

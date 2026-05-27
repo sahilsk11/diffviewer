@@ -1,4 +1,4 @@
-import { Code2, Search, Settings, WrapText } from 'lucide-react';
+import { Search, Settings, WrapText } from 'lucide-react';
 import { Link } from 'react-router';
 
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { indicatorOptions, lineDiffOptions, useDiffSettings } from '@/lib/diff-settings';
+import { useReviewSession } from '@/lib/review-state';
 
 // Minimal top nav. Logo on the left, room for actions on the right.
 export function Navbar(): React.ReactNode {
@@ -29,22 +30,24 @@ export function Navbar(): React.ReactNode {
     showLineNumbers,
     wrapLines,
   } = useDiffSettings();
+  const { pullRequest } = useReviewSession();
+  const pullRequestLabel =
+    pullRequest === null
+      ? 'Diffviewer'
+      : `${pullRequest.ref.owner}/${pullRequest.ref.repo} #${pullRequest.ref.pullNumber}`;
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-border bg-background/80 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-6">
+      <div className="flex h-14 w-full items-center justify-between px-4 sm:px-6">
         <Link
           to="/"
-          className="text-sm font-semibold tracking-tight text-foreground hover:text-foreground/90"
+          className="min-w-0 truncate text-sm font-semibold tracking-tight text-foreground hover:text-foreground/90"
         >
-          App
+          {pullRequestLabel}
         </Link>
         <nav className="flex items-center gap-1 text-sm text-muted-foreground" aria-label="Primary">
           <Button variant="ghost" size="sm" aria-label="Search">
             <Search className="size-4" />
-          </Button>
-          <Button variant="ghost" size="sm" aria-label="Repository">
-            <Code2 className="size-4" />
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

@@ -41,7 +41,8 @@ export const ProjectTreePanel = memo(function ProjectTreePanel(): React.ReactNod
     [pullRequest?.files],
   );
   const fullPaths = useMemo(
-    () => treeQuery.data?.entries.filter((entry) => entry.type === 'blob').map((entry) => entry.path),
+    () =>
+      treeQuery.data?.entries.filter((entry) => entry.type === 'blob').map((entry) => entry.path),
     [treeQuery.data?.entries],
   );
   const paths = mode === 'full' && fullPaths !== undefined ? fullPaths : modifiedPaths;
@@ -87,14 +88,21 @@ export const ProjectTreePanel = memo(function ProjectTreePanel(): React.ReactNod
     if (mode === 'full' && treeQuery.isError) return 'Repository tree unavailable';
     if (mode === 'full' && treeQuery.data?.truncated === true) return 'Repository tree truncated';
     return `${paths.length} files`;
-  }, [mode, paths.length, pullRequest, treeQuery.data?.truncated, treeQuery.isError, treeQuery.isLoading]);
+  }, [
+    mode,
+    paths.length,
+    pullRequest,
+    treeQuery.data?.truncated,
+    treeQuery.isError,
+    treeQuery.isLoading,
+  ]);
 
   return (
     <aside
       className="flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-border bg-card"
       aria-label="Project tree"
     >
-      <div className="flex h-12 shrink-0 items-center border-b border-border px-3">
+      <div className="flex shrink-0 items-center px-3 py-2">
         <ToggleGroup
           type="single"
           value={mode}

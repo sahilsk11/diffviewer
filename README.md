@@ -59,10 +59,10 @@ default workflow:
 
 ## Configuration
 
-| Variable            | Purpose                                                                               | Default                 |
-| ------------------- | ------------------------------------------------------------------------------------- | ----------------------- |
-| `VITE_API_BASE_URL` | Optional absolute backend URL override. Leave empty for same-origin `/api` calls.    | empty                   |
-| `PORT`              | Port the dev / preview server binds to. `strictPort: true` — taken ports fail loudly. | `3000`                  |
+| Variable            | Purpose                                                                               | Default |
+| ------------------- | ------------------------------------------------------------------------------------- | ------- |
+| `VITE_API_BASE_URL` | Optional absolute backend URL override. Leave empty for same-origin `/api` calls.     | empty   |
+| `PORT`              | Port the dev / preview server binds to. `strictPort: true` — taken ports fail loudly. | `3000`  |
 
 Resolution order: per-process env → `.env.local` → `.env` → same-origin
 defaults in `src/lib/env.ts`. Both `.env*` files are gitignored; copy
@@ -107,12 +107,12 @@ uv run pyright
 Backend configuration is read from environment variables or `backend/.env`.
 Copy `backend/.env.example` when local overrides are needed.
 
-| Variable                  | Purpose                                      | Default                            |
-| ------------------------- | -------------------------------------------- | ---------------------------------- |
+| Variable                    | Purpose                                     | Default                            |
+| --------------------------- | ------------------------------------------- | ---------------------------------- |
 | `GITHUB_TOKEN` / `GH_TOKEN` | Server-side GitHub token for private repos. | local credential fallback          |
-| `GITHUB_API_BASE_URL`     | GitHub REST API base URL.                    | `https://api.github.com`           |
-| `DIFFVIEWER_DB_PATH`      | SQLite path for per-file review state.       | `~/.diffviewer/diffviewer.sqlite3` |
-| `DIFFVIEWER_CORS_ORIGINS` | Comma-separated allowed frontend origins.    | `http://localhost:3000`            |
+| `GITHUB_API_BASE_URL`       | GitHub REST API base URL.                   | `https://api.github.com`           |
+| `DIFFVIEWER_DB_PATH`        | SQLite path for per-file review state.      | `~/.diffviewer/diffviewer.sqlite3` |
+| `DIFFVIEWER_CORS_ORIGINS`   | Comma-separated allowed frontend origins.   | `http://localhost:3000`            |
 
 Do not expose GitHub tokens as `VITE_*` variables. They belong only in the
 backend process. If no token env var is set, local development checks common

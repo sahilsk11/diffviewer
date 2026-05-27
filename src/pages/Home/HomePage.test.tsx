@@ -40,10 +40,14 @@ function setupFetch(): ReturnType<typeof vi.fn> {
       );
     }
     if (url.includes('/contents?') && url.includes('side=LEFT')) {
-      return Promise.resolve(json({ path: 'src/example.ts', side: 'LEFT', sha: 'a', contents: 'old' }));
+      return Promise.resolve(
+        json({ path: 'src/example.ts', side: 'LEFT', sha: 'a', contents: 'old' }),
+      );
     }
     if (url.includes('/contents?') && url.includes('side=RIGHT')) {
-      return Promise.resolve(json({ path: 'src/example.ts', side: 'RIGHT', sha: 'b', contents: 'new' }));
+      return Promise.resolve(
+        json({ path: 'src/example.ts', side: 'RIGHT', sha: 'b', contents: 'new' }),
+      );
     }
     if (url.endsWith('/files/state')) {
       return Promise.resolve(
@@ -63,19 +67,18 @@ afterEach(() => {
 });
 
 describe('HomePage', () => {
-  it('loads a pull request and marks the current file approved', async () => {
+  it('loads a pull request from the pr URL parameter and marks the current file approved', async () => {
     const fetchMock = setupFetch();
     const user = userEvent.setup();
+    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 
-    await user.type(
-      screen.getByLabelText('GitHub pull request URL'),
-      'https://github.com/OWNER/REPO/pull/123',
-    );
-    await user.click(screen.getByRole('button', { name: 'Load' }));
-
     expect(await screen.findByText('PR title')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'OWNER/REPO #123' })).toBeInTheDocument();
+    expect(screen.getByText('1 / 1')).toBeInTheDocument();
+    expect(screen.queryByLabelText('GitHub pull request URL')).not.toBeInTheDocument();
+    expect(screen.queryByText('unreviewed')).not.toBeInTheDocument();
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/contents?path=src%2Fexample.ts&side=RIGHT'),
@@ -94,7 +97,7 @@ describe('HomePage', () => {
         }),
       );
     });
-    expect(screen.getByText('approved')).toBeInTheDocument();
+    expect(screen.queryByText('approved')).not.toBeInTheDocument();
   });
 
   it('loads a pull request from the pr URL parameter', async () => {
@@ -104,9 +107,6 @@ describe('HomePage', () => {
     renderWithProviders(<App />);
 
     expect(await screen.findByText('PR title')).toBeInTheDocument();
-    expect(screen.getByLabelText('GitHub pull request URL')).toHaveValue(
-      'https://github.com/OWNER/REPO/pull/123',
-    );
     expect(fetchMock).toHaveBeenCalledWith(
       '/api/pull-requests/load',
       expect.objectContaining({
