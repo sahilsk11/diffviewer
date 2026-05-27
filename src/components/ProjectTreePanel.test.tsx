@@ -45,7 +45,9 @@ describe('ProjectTreePanel', () => {
         );
       }
       if (url.includes('/contents?')) {
-        return Promise.resolve(json({ path: 'src/example.ts', side: 'RIGHT', sha: 'b', contents: 'new' }));
+        return Promise.resolve(
+          json({ path: 'src/example.ts', side: 'RIGHT', sha: 'b', contents: 'new' }),
+        );
       }
       if (url.endsWith('/tree')) {
         return Promise.resolve(
@@ -70,7 +72,7 @@ describe('ProjectTreePanel', () => {
       screen.getByLabelText('GitHub pull request URL'),
       'https://github.com/OWNER/REPO/pull/123',
     );
-    await user.click(screen.getByRole('button', { name: 'Load' }));
+    await user.click(screen.getByRole('button', { name: /Go/ }));
 
     await screen.findByText('PR title');
     expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/tree'))).toBe(false);

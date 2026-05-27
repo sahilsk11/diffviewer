@@ -81,11 +81,20 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
   }
 
   if (!res.ok) {
-    const message = errorMessage(parsed) ?? `${res.status} ${res.statusText}`;
+    const message = errorMessage(parsed) ?? fallbackErrorMessage(res.status, res.statusText);
     throw new ApiErrorImpl(message, res.status, parsed);
   }
 
   return parsed as T;
+}
+
+function fallbackErrorMessage(status: number, statusText: string): string {
+  if (status === 502 || status === 503 || status === 504) {
+    return 'API server unavailable. Check that the backend is running and the API proxy or base URL is configured.';
+  }
+
+  const statusLabel = [status, statusText].filter(Boolean).join(' ');
+  return statusLabel || 'Request failed.';
 }
 
 function errorMessage(parsed: unknown): string | null {

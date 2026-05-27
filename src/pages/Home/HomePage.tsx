@@ -8,12 +8,22 @@ import {
   Virtualizer,
 } from '@pierre/diffs/react';
 import { type QueryKey, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, CircleCheckBig, ExternalLink, Flag, SkipForward } from 'lucide-react';
+import {
+  ArrowRight,
+  ChevronLeft,
+  CircleCheckBig,
+  ExternalLink,
+  Flag,
+  SkipForward,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { isApiError } from '@/lib/api';
 import { useDiffSettings } from '@/lib/diff-settings';
@@ -73,10 +83,7 @@ async function readContents(
   }
 }
 
-function fileContentsQueryKey(
-  pullRequest: PullRequestDetails,
-  path: string,
-): QueryKey {
+function fileContentsQueryKey(pullRequest: PullRequestDetails, path: string): QueryKey {
   return [
     'file-contents',
     pullRequest.ref.owner,
@@ -115,6 +122,14 @@ interface InitialPullRequestLoad {
   normalizedUrl: string | null;
 }
 
+interface PullRequestUrlFormProps {
+  error: string | null;
+  isLoading: boolean;
+  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
+  setValue: (value: string) => void;
+  value: string;
+}
+
 function readInitialPullRequestLoad(): InitialPullRequestLoad {
   const prParam = new URLSearchParams(window.location.search).get('pr');
   if (prParam === null) return { error: null, inputUrl: '', normalizedUrl: null };
@@ -131,10 +146,47 @@ function readInitialPullRequestLoad(): InitialPullRequestLoad {
   return { error: null, inputUrl: normalizedUrl, normalizedUrl };
 }
 
+function PullRequestUrlForm({
+  error,
+  isLoading,
+  onSubmit,
+  setValue,
+  value,
+}: PullRequestUrlFormProps): React.ReactNode {
+  return (
+    <form className="space-y-3" onSubmit={onSubmit} aria-label="Load pull request">
+      <div className="space-y-2">
+        <Label htmlFor="pull-request-url">GitHub pull request URL</Label>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Input
+            id="pull-request-url"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            placeholder="https://github.com/OWNER/REPO/pull/123"
+            aria-label="GitHub pull request URL"
+            aria-invalid={error !== null}
+            className="h-12"
+          />
+          <Button type="submit" size="lg" className="shrink-0" disabled={isLoading}>
+            Go
+            <ArrowRight className="size-4" />
+          </Button>
+        </div>
+      </div>
+      {error !== null ? (
+        <p className="text-sm text-danger" role="alert">
+          {error}
+        </p>
+      ) : null}
+    </form>
+  );
+}
+
 export function HomePage(): React.ReactNode {
   const { diffIndicators, layout, lineDiffType, showLineNumbers, wrapLines } = useDiffSettings();
   const { pullRequest, selectedPath, setPullRequest, setSelectedPath } = useReviewSession();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [initialPullRequestLoad] = useState(readInitialPullRequestLoad);
   const [pullRequestUrl, setPullRequestUrl] = useState(initialPullRequestLoad.inputUrl);
   const [selectedLines, setSelectedLines] = useState<SelectedLineRange | null>(null);
@@ -466,28 +518,52 @@ export function HomePage(): React.ReactNode {
       return;
     }
     setPullRequestUrl(normalizedUrl);
+    void navigate(`/?pr=${encodeURIComponent(normalizedUrl)}`);
     loadPullRequest.mutate(normalizedUrl);
   }
 
-  const status = currentFile === null ? 'unreviewed' : (reviewStatuses[currentFile.path] ?? 'unreviewed');
+  if (
+    pullRequest === null &&
+    initialPullRequestLoad.normalizedUrl === null &&
+    !loadPullRequest.isPending
+  ) {
+    return (
+      <section className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
+        <div className="w-full max-w-xl space-y-6">
+          <h1 className="text-center text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
+            Diffviewer
+          </h1>
+          <Card className="shadow-2xl shadow-black/30">
+            <CardHeader className="items-center text-center">
+              <CardTitle>Open a pull request</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <PullRequestUrlForm
+                error={formError}
+                isLoading={loadPullRequest.isPending}
+                onSubmit={handleLoad}
+                setValue={setPullRequestUrl}
+                value={pullRequestUrl}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+    );
+  }
+
+  const status =
+    currentFile === null ? 'unreviewed' : (reviewStatuses[currentFile.path] ?? 'unreviewed');
 
   return (
     <section className="flex min-h-[calc(100vh-3.5rem)] w-full flex-col gap-4 px-4 py-5 sm:px-6">
-      <form
-        className="flex w-full flex-col gap-2 lg:flex-row lg:items-center"
+      <PullRequestUrlForm
+        error={null}
+        isLoading={loadPullRequest.isPending}
         onSubmit={handleLoad}
-        aria-label="Load pull request"
-      >
-        <Input
-          value={pullRequestUrl}
-          onChange={(event) => setPullRequestUrl(event.target.value)}
-          placeholder="https://github.com/OWNER/REPO/pull/123"
-          aria-label="GitHub pull request URL"
-        />
-        <Button type="submit" className="h-11 shrink-0" disabled={loadPullRequest.isPending}>
-          Load
-        </Button>
-      </form>
+        setValue={setPullRequestUrl}
+        value={pullRequestUrl}
+      />
 
       {formError !== null ? (
         <p className="text-sm text-danger" role="alert">
@@ -496,9 +572,7 @@ export function HomePage(): React.ReactNode {
       ) : null}
 
       <div className="flex w-full items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span>
-          {files.length === 0 ? '0 / 0' : `${currentIndex + 1} / ${files.length}`}
-        </span>
+        <span>{files.length === 0 ? '0 / 0' : `${currentIndex + 1} / ${files.length}`}</span>
         <div className="flex min-w-0 items-center gap-2">
           {pullRequest !== null ? (
             <a
@@ -524,7 +598,11 @@ export function HomePage(): React.ReactNode {
         className="min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
         aria-label="Pull request diff"
       >
-        {pullRequest === null ? (
+        {loadPullRequest.isPending ? (
+          <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+            Loading pull request
+          </div>
+        ) : pullRequest === null ? (
           <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
             No pull request loaded
           </div>

@@ -11,7 +11,11 @@ interface ReviewSessionValue {
 
 const ReviewSessionContext = createContext<ReviewSessionValue | null>(null);
 
-export function ReviewSessionProvider({ children }: { children: React.ReactNode }): React.ReactNode {
+export function ReviewSessionProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}): React.ReactNode {
   const [pullRequest, setPullRequest] = useState<PullRequestDetails | null>(null);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
 

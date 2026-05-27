@@ -40,10 +40,14 @@ function setupFetch(): ReturnType<typeof vi.fn> {
       );
     }
     if (url.includes('/contents?') && url.includes('side=LEFT')) {
-      return Promise.resolve(json({ path: 'src/example.ts', side: 'LEFT', sha: 'a', contents: 'old' }));
+      return Promise.resolve(
+        json({ path: 'src/example.ts', side: 'LEFT', sha: 'a', contents: 'old' }),
+      );
     }
     if (url.includes('/contents?') && url.includes('side=RIGHT')) {
-      return Promise.resolve(json({ path: 'src/example.ts', side: 'RIGHT', sha: 'b', contents: 'new' }));
+      return Promise.resolve(
+        json({ path: 'src/example.ts', side: 'RIGHT', sha: 'b', contents: 'new' }),
+      );
     }
     if (url.endsWith('/files/state')) {
       return Promise.resolve(
@@ -73,7 +77,7 @@ describe('HomePage', () => {
       screen.getByLabelText('GitHub pull request URL'),
       'https://github.com/OWNER/REPO/pull/123',
     );
-    await user.click(screen.getByRole('button', { name: 'Load' }));
+    await user.click(screen.getByRole('button', { name: /Go/ }));
 
     expect(await screen.findByText('PR title')).toBeInTheDocument();
     await waitFor(() => {
