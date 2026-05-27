@@ -1,0 +1,219 @@
+{
+  "source": {
+    "provider": "github",
+    "owner": "sahilsk11",
+    "repo": "friday",
+    "number": 37,
+    "url": "https://github.com/sahilsk11/friday/pull/37"
+  },
+  "pullRequest": {
+    "additions": 61,
+    "assignees": [],
+    "author": {
+      "id": "MDQ6VXNlcjE2NTg1NzE0",
+      "is_bot": false,
+      "login": "sahilsk11",
+      "name": "Sahil Kapur"
+    },
+    "baseRefName": "master",
+    "baseRefOid": "def8546585557833722c7661bcd3b744aaea88ad",
+    "body": "",
+    "changedFiles": 5,
+    "closed": true,
+    "comments": [
+      {
+        "id": "IC_kwDOSRdi488AAAABDF9xFQ",
+        "author": {
+          "login": "sahilsk11"
+        },
+        "authorAssociation": "OWNER",
+        "body": "@codex review",
+        "createdAt": "2026-05-20T20:53:31Z",
+        "includesCreatedEdit": true,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/sahilsk11/friday/pull/37#issuecomment-4502548757",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOSRdi488AAAABDF94qQ",
+        "author": {
+          "login": "chatgpt-codex-connector"
+        },
+        "authorAssociation": "NONE",
+        "body": "To use Codex here, [create an environment for this repo](https://chatgpt.com/codex/cloud/settings/environments).",
+        "createdAt": "2026-05-20T20:53:48Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/sahilsk11/friday/pull/37#issuecomment-4502550697",
+        "viewerDidAuthor": false
+      },
+      {
+        "id": "IC_kwDOSRdi488AAAABDGBdJg",
+        "author": {
+          "login": "sahilsk11"
+        },
+        "authorAssociation": "OWNER",
+        "body": "@codex review",
+        "createdAt": "2026-05-20T21:02:57Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/sahilsk11/friday/pull/37#issuecomment-4502609190",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOSRdi488AAAABDGDsqQ",
+        "author": {
+          "login": "chatgpt-codex-connector"
+        },
+        "authorAssociation": "NONE",
+        "body": "Codex Review: Didn't find any major issues. :tada:\n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+        "createdAt": "2026-05-20T21:08:20Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/sahilsk11/friday/pull/37#issuecomment-4502645929",
+        "viewerDidAuthor": false
+      },
+      {
+        "id": "IC_kwDOSRdi488AAAABDGIaCw",
+        "author": {
+          "login": "sahilsk11"
+        },
+        "authorAssociation": "OWNER",
+        "body": "Verification performed locally on this branch (`voice-toggle-defaults`) with no code changes after the PR commit.\n\nLocal stack used:\n- Frontend dev server: `http://localhost:5173`\n- FastAPI: `http://127.0.0.1:8000`\n- OpenCode provider: `http://127.0.0.1:4096`\n- LiveKit: `ws://127.0.0.1:7880`\n- LiveKit worker restarted with `LIVEKIT_URL=ws://127.0.0.1:7880` and `FRIDAY_API_BASE_URL=http://127.0.0.1:8000`\n\nStatic/build checks:\n- `cd web && npm run typecheck` passed.\n- `uv run mypy` passed: `Success: no issues found in 51 source files`.\n- `cd web && npm run build` passed. Vite still reports the existing large chunk warning.\n\nRendered browser verification:\n- Used `agent-browser` desktop viewport `1440x1000` to open the app, open the new-session modal, and verify the directory field renders as `/home/sahil/projects`.\n- In the same modal, switched harness to `Codex` and verified the model dropdown selected `OpenAI / GPT-5.5 Codex` by default.\n- Verified the Codex model dropdown includes `OpenAI / GPT-5.3 Codex Spark`.\n- Created a real Codex session and confirmed the room rendered with model `openai/gpt-5.5`, client connected, agent ready, and the main voice button shown as `Start`.\n- Used a temporary Playwright check with fake microphone media to exercise the actual voice room control: clicked `Start`, observed the button become `Send` and the UI enter listening state, clicked `Send`, and observed the UI move into sending/transcribing state with the button disabled as `Sending...` during the end-turn RPC.\n- Used `agent-browser` mobile viewport `390x844` against the same session and verified the room renders cleanly with the `Start` button visible and tappable, no obvious overlap/clipping in the voice controls, and the transcript/composer below.\n\nScreenshot artifacts from local verification:\n- `/tmp/friday-toggle-verification-desktop.png`\n- `/tmp/friday-toggle-mobile.png`\n\nSelf-test attempts and blockers:\n- `cd web && npm run friday:self-test -- --headless --output /tmp/friday-self-tests --directory /home/sahil/projects --hold-ms 2000 --wait-after-release-ms 45000 --task 'Reply with exactly: Friday voice self test passed.'` could not run fully because this Linux machine does not have the macOS `say` command that the script currently requires to synthesize speech.\n- `cd web && npm run friday:text-test -- --headless --output /tmp/friday-self-tests --directory /home/sahil/projects --text-channel direct --wait-after-release-ms 45000 --task 'Reply with exactly: Friday direct text self test passed.'` reached the app, created a session, connected LiveKit, submitted the turn, and then failed at the provider with an OpenRouter credit/max-token limit error. I am not treating that as a regression in this PR because the changed surface is the voice control behavior, default directory, and Codex model defaults.\n",
+        "createdAt": "2026-05-20T21:18:32Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/sahilsk11/friday/pull/37#issuecomment-4502723083",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOSRdi488AAAABDGZx7Q",
+        "author": {
+          "login": "sahilsk11"
+        },
+        "authorAssociation": "OWNER",
+        "body": "@codex review\n\nHead SHA: e034f465b2b1e47204a8f1629a677fdb95b74138",
+        "createdAt": "2026-05-20T22:03:33Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [
+          {
+            "content": "EYES",
+            "users": {
+              "totalCount": 1
+            }
+          }
+        ],
+        "url": "https://github.com/sahilsk11/friday/pull/37#issuecomment-4503007725",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOSRdi488AAAABDGagbQ",
+        "author": {
+          "login": "sahilsk11"
+        },
+        "authorAssociation": "OWNER",
+        "body": "@codex review",
+        "createdAt": "2026-05-20T22:05:51Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/sahilsk11/friday/pull/37#issuecomment-4503019629",
+        "viewerDidAuthor": true
+      },
+      {
+        "id": "IC_kwDOSRdi488AAAABDGchmA",
+        "author": {
+          "login": "chatgpt-codex-connector"
+        },
+        "authorAssociation": "NONE",
+        "body": "Codex Review: Didn't find any major issues. :tada:\n\n<details> <summary>ℹ️ About Codex in GitHub</summary>\n<br/>\n\n[Your team has set up Codex to review pull requests in this repo](https://chatgpt.com/codex/cloud/settings/general). Reviews are triggered when you\n- Open a pull request for review\n- Mark a draft as ready\n- Comment \"@codex review\".\n\nIf Codex has suggestions, it will comment; otherwise it will react with 👍.\n\n\n\n\nCodex can also answer questions or update the PR. Try commenting \"@codex address that feedback\".\n            \n</details>",
+        "createdAt": "2026-05-20T22:12:02Z",
+        "includesCreatedEdit": false,
+        "isMinimized": false,
+        "minimizedReason": "",
+        "reactionGroups": [],
+        "url": "https://github.com/sahilsk11/friday/pull/37#issuecomment-4503052696",
+        "viewerDidAuthor": false
+      }
+    ],
+    "commits": [
+      {
+        "authoredDate": "2026-05-20T20:53:02Z",
+        "authors": [
+          {
+            "email": "sahilkapur.a@gmail.com",
+            "id": "MDQ6VXNlcjE2NTg1NzE0",
+            "login": "sahilsk11",
+            "name": "Sahil Kapur"
+          }
+        ],
+        "committedDate": "2026-05-20T20:53:02Z",
+        "messageBody": "",
+        "messageHeadline": "Update voice turn controls and Codex defaults",
+        "oid": "e034f465b2b1e47204a8f1629a677fdb95b74138"
+      }
+    ],
+    "createdAt": "2026-05-20T20:53:09Z",
+    "deletions": 59,
+    "files": [
+      {
+        "path": "README.md",
+        "additions": 2,
+        "deletions": 2,
+        "changeType": "MODIFIED"
+      },
+      {
+        "path": "friday/infra/providers/codex.py",
+        "additions": 7,
+        "deletions": 1,
+        "changeType": "MODIFIED"
+      },
+      {
+        "path": "web/scripts/friday-self-test.mjs",
+        "additions": 4,
+        "deletions": 12,
+        "changeType": "MODIFIED"
+      },
+      {
+        "path": "web/src/features/room/FridayRoom.tsx",
+        "additions": 47,
+        "deletions": 43,
+        "changeType": "MODIFIED"
+      },
+      {
+        "path": "web/src/features/sessions/components/new-session-modal.tsx",
+        "additions": 1,
+        "deletions": 1,
+        "changeType": "MODIFIED"
+      }
+    ],
+    "headRefName": "voice-toggle-defaults",
+    "headRefOid": "e034f465b2b1e47204a8f1629a677fdb95b74138",
+    "isCrossRepository": false,
+    "isDraft": false,
+    "labels": [],
+    "latestReviews": [],
+    "mergeable": "UNKNOWN",
+    "number": 37,
+    "reviewDecision": "",
+    "reviews": [],
+    "state": "MERGED",
+    "statusCheckRollup": [],
+    "title": "Update voice turn controls and Codex defaults",
+    "updatedAt": "2026-05-21T01:36:12Z",
+    "url": "https://github.com/sahilsk11/friday/pull/37"
+  }
+}

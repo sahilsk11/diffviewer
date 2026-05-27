@@ -1,0 +1,1183 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Diffviewer Component Gallery</title>
+    <style>
+      :root {
+        color: #17212b;
+        background: #f1f4f2;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        font-synthesis: none;
+        text-rendering: optimizeLegibility;
+        -webkit-font-smoothing: antialiased;
+        --ink: #17212b;
+        --muted: #62717e;
+        --line: #d6ded8;
+        --panel: #fbfcfb;
+        --soft: #eef3f0;
+        --green: #1f6f52;
+        --teal: #1e6870;
+        --blue: #325f9f;
+        --red: #a23b35;
+        --amber: #9a641b;
+        --violet: #6b538d;
+        --shadow: 0 1px 2px rgb(23 33 43 / 0.05);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-width: 320px;
+        margin: 0;
+      }
+
+      button {
+        font: inherit;
+      }
+
+      .shell {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+        padding: 14px;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 4;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        border-bottom: 1px solid var(--line);
+        background: rgb(241 244 242 / 0.94);
+        padding: 12px 0;
+        backdrop-filter: blur(12px);
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .mark {
+        display: grid;
+        width: 34px;
+        height: 34px;
+        place-items: center;
+        border: 1px solid #1a5d62;
+        border-radius: 8px;
+        background: #dff0ec;
+        color: #17464a;
+        font-weight: 850;
+      }
+
+      .brand strong,
+      .brand span {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .brand span {
+        color: var(--muted);
+        font-size: 0.82rem;
+        font-weight: 700;
+      }
+
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .iconButton,
+      .tab {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 34px;
+        border: 1px solid #c8d2ca;
+        border-radius: 7px;
+        background: #ffffff;
+        color: #22313c;
+        padding: 0 10px;
+        font-weight: 800;
+      }
+
+      .iconButton {
+        width: 36px;
+        padding: 0;
+      }
+
+      .tabs {
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        padding: 12px 0 6px;
+      }
+
+      .tab {
+        white-space: nowrap;
+      }
+
+      .tab.active {
+        border-color: #1e6870;
+        background: #dff0ec;
+        color: #16484d;
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
+        gap: 12px;
+        margin-top: 8px;
+      }
+
+      .summary,
+      .module,
+      .tile,
+      .diffBlock,
+      .evidenceChip,
+      .question,
+      .risk,
+      .ledgerRow,
+      .schemaRow,
+      .timelineItem {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .summary,
+      .module {
+        padding: 14px;
+      }
+
+      .eyebrow {
+        margin: 0 0 5px;
+        color: var(--muted);
+        font-size: 0.72rem;
+        font-weight: 850;
+        letter-spacing: 0;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+
+      h1 {
+        max-width: 920px;
+        margin-bottom: 12px;
+        font-size: clamp(1.45rem, 4.8vw, 2.8rem);
+        line-height: 1.05;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        margin-bottom: 10px;
+        font-size: 1rem;
+        letter-spacing: 0;
+      }
+
+      h3 {
+        margin-bottom: 6px;
+        font-size: 0.94rem;
+        letter-spacing: 0;
+      }
+
+      p {
+        color: #394957;
+        line-height: 1.45;
+      }
+
+      .summary p {
+        max-width: 780px;
+        margin-bottom: 0;
+      }
+
+      .metaGrid {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin-top: 14px;
+      }
+
+      .metric {
+        border: 1px solid #dce4dd;
+        border-radius: 7px;
+        background: #f7f9f7;
+        padding: 10px;
+      }
+
+      .metric strong {
+        display: block;
+        color: var(--ink);
+        font-size: 1.2rem;
+      }
+
+      .metric span {
+        color: var(--muted);
+        font-size: 0.78rem;
+        font-weight: 750;
+      }
+
+      .stack {
+        display: grid;
+        gap: 8px;
+      }
+
+      .pillRow,
+      .topline,
+      .splitLine,
+      .chipLine,
+      .riskMeta,
+      .ledgerRow,
+      .schemaRow {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .pillRow,
+      .chipLine {
+        flex-wrap: wrap;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        border-radius: 999px;
+        border: 1px solid #d7ded8;
+        background: #f6f8f6;
+        color: #344454;
+        padding: 0 8px;
+        font-size: 0.74rem;
+        font-weight: 850;
+      }
+
+      .pill.good {
+        border-color: #a9d2be;
+        background: #e5f4ec;
+        color: var(--green);
+      }
+
+      .pill.warn {
+        border-color: #e2c48d;
+        background: #fff4dd;
+        color: var(--amber);
+      }
+
+      .pill.bad {
+        border-color: #e2aaa6;
+        background: #fff0ef;
+        color: var(--red);
+      }
+
+      .pill.info {
+        border-color: #acc6e7;
+        background: #edf4ff;
+        color: var(--blue);
+      }
+
+      .sectionTitle {
+        display: flex;
+        align-items: end;
+        justify-content: space-between;
+        gap: 12px;
+        margin: 24px 0 10px;
+      }
+
+      .sectionTitle p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.86rem;
+        font-weight: 700;
+      }
+
+      .galleryGrid {
+        display: grid;
+        grid-template-columns: repeat(12, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .span4 {
+        grid-column: span 4;
+      }
+
+      .span5 {
+        grid-column: span 5;
+      }
+
+      .span6 {
+        grid-column: span 6;
+      }
+
+      .span7 {
+        grid-column: span 7;
+      }
+
+      .span8 {
+        grid-column: span 8;
+      }
+
+      .span12 {
+        grid-column: 1 / -1;
+      }
+
+      .tile {
+        padding: 12px;
+      }
+
+      .topline {
+        justify-content: space-between;
+        margin-bottom: 8px;
+      }
+
+      .topline small {
+        color: var(--muted);
+        font-weight: 800;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 8px;
+      }
+
+      .timelineItem {
+        display: grid;
+        grid-template-columns: 28px minmax(0, 1fr) auto;
+        gap: 10px;
+        align-items: start;
+        padding: 10px;
+      }
+
+      .dot {
+        display: grid;
+        width: 28px;
+        height: 28px;
+        place-items: center;
+        border-radius: 999px;
+        background: #edf4ff;
+        color: var(--blue);
+        font-size: 0.8rem;
+        font-weight: 900;
+      }
+
+      .timelineItem p,
+      .question p,
+      .risk p {
+        margin-bottom: 0;
+      }
+
+      .areaMap {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .area {
+        min-height: 132px;
+        border: 1px solid #d8e1dc;
+        border-radius: 8px;
+        background: #f9fbf9;
+        padding: 10px;
+      }
+
+      .area strong {
+        display: block;
+        margin-bottom: 8px;
+      }
+
+      .area ul,
+      .claimTable,
+      .fileList {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .area li,
+      .fileList li {
+        padding: 6px 0;
+        border-top: 1px solid #e6ece7;
+        color: #344454;
+        font-size: 0.84rem;
+      }
+
+      .claimTable {
+        display: grid;
+        gap: 8px;
+      }
+
+      .claim {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        border: 1px solid #d8e1dc;
+        border-radius: 8px;
+        background: #f9fbf9;
+        padding: 10px;
+      }
+
+      .claim p {
+        margin-bottom: 8px;
+      }
+
+      .evidenceChip {
+        display: inline-flex;
+        align-items: center;
+        max-width: 100%;
+        min-height: 26px;
+        background: #ffffff;
+        color: #2d3c47;
+        padding: 0 8px;
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        font-size: 0.74rem;
+        overflow-wrap: anywhere;
+      }
+
+      .riskStack,
+      .questionStack,
+      .ledger {
+        display: grid;
+        gap: 8px;
+      }
+
+      .risk,
+      .question {
+        padding: 10px;
+      }
+
+      .riskMeta {
+        flex-wrap: wrap;
+        margin-bottom: 8px;
+      }
+
+      .riskBar {
+        display: grid;
+        grid-template-columns: 44% 30% 16% 10%;
+        height: 12px;
+        overflow: hidden;
+        border-radius: 999px;
+        background: #edf1ee;
+      }
+
+      .riskBar span:nth-child(1) {
+        background: #c8eadb;
+      }
+
+      .riskBar span:nth-child(2) {
+        background: #ffe1a8;
+      }
+
+      .riskBar span:nth-child(3) {
+        background: #f2aaa4;
+      }
+
+      .riskBar span:nth-child(4) {
+        background: #b9cdea;
+      }
+
+      .ledgerRow,
+      .schemaRow {
+        justify-content: space-between;
+        padding: 9px 10px;
+      }
+
+      .ledgerRow span,
+      .schemaRow span {
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+
+      .check {
+        color: var(--green);
+        font-weight: 900;
+      }
+
+      .miss {
+        color: var(--red);
+        font-weight: 900;
+      }
+
+      .matrix {
+        overflow-x: auto;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      table {
+        width: 100%;
+        min-width: 640px;
+        border-collapse: collapse;
+      }
+
+      th,
+      td {
+        border-bottom: 1px solid #e3e9e5;
+        padding: 10px;
+        text-align: left;
+        vertical-align: top;
+        font-size: 0.84rem;
+      }
+
+      th {
+        color: #4f5f6b;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+      }
+
+      code,
+      pre {
+        font-family:
+          ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      }
+
+      .diffBlock {
+        overflow: hidden;
+      }
+
+      .diffHeader {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        border-bottom: 1px solid #dfe6e1;
+        background: #f8faf8;
+        padding: 9px 10px;
+      }
+
+      .diffHeader code {
+        overflow-wrap: anywhere;
+        font-size: 0.78rem;
+        font-weight: 800;
+      }
+
+      .diffBody {
+        display: grid;
+      }
+
+      .line {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr) minmax(120px, 220px);
+        border-bottom: 1px solid #eef2ef;
+      }
+
+      .ln {
+        background: #f4f7f5;
+        color: #7a8790;
+        padding: 6px 8px;
+        text-align: right;
+        user-select: none;
+      }
+
+      .code {
+        min-width: 0;
+        overflow-x: auto;
+        padding: 6px 8px;
+        white-space: pre;
+      }
+
+      .ann {
+        border-left: 1px solid #e0e7e2;
+        background: #fbfcfb;
+        color: #4a5a66;
+        padding: 6px 8px;
+        font-size: 0.76rem;
+        font-weight: 750;
+      }
+
+      .add .code,
+      .add .ln {
+        background: #eaf7ef;
+      }
+
+      .del .code,
+      .del .ln {
+        background: #fff0ef;
+      }
+
+      .hot .ann {
+        background: #fff7e8;
+        color: #825315;
+      }
+
+      .schemaGrid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+      }
+
+      .miniPreview {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+      }
+
+      .phoneFrame {
+        width: min(100%, 300px);
+        margin-left: auto;
+        border: 1px solid #cdd8d1;
+        border-radius: 18px;
+        background: #101820;
+        padding: 10px;
+      }
+
+      .phoneScreen {
+        display: grid;
+        gap: 8px;
+        min-height: 520px;
+        border-radius: 12px;
+        background: #f7f9f7;
+        padding: 10px;
+      }
+
+      .phoneScreen .tile {
+        box-shadow: none;
+      }
+
+      .bottomNav {
+        position: sticky;
+        bottom: 0;
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 4px;
+        margin: auto -10px -10px;
+        border-top: 1px solid #dce4dd;
+        background: #ffffff;
+        padding: 6px;
+      }
+
+      .bottomNav button {
+        min-height: 38px;
+        border: 0;
+        border-radius: 7px;
+        background: transparent;
+        color: #526371;
+        font-size: 0.72rem;
+        font-weight: 850;
+      }
+
+      .bottomNav button.active {
+        background: #dff0ec;
+        color: #17464a;
+      }
+
+      @media (max-width: 920px) {
+        .hero,
+        .galleryGrid {
+          grid-template-columns: 1fr;
+        }
+
+        .span4,
+        .span5,
+        .span6,
+        .span7,
+        .span8,
+        .span12 {
+          grid-column: 1;
+        }
+
+        .metaGrid,
+        .areaMap,
+        .schemaGrid,
+        .miniPreview {
+          grid-template-columns: 1fr;
+        }
+
+        .phoneFrame {
+          margin: 0;
+        }
+      }
+
+      @media (max-width: 620px) {
+        .shell {
+          padding: 10px;
+        }
+
+        .topbar {
+          align-items: flex-start;
+        }
+
+        .toolbar .tab {
+          display: none;
+        }
+
+        .metaGrid {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .claim,
+        .timelineItem {
+          grid-template-columns: 1fr;
+        }
+
+        .line {
+          grid-template-columns: 34px minmax(0, 1fr);
+        }
+
+        .ann {
+          grid-column: 1 / -1;
+          border-left: 0;
+          border-top: 1px solid #e0e7e2;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="mark">DV</div>
+          <div>
+            <strong>Diffviewer Components</strong>
+            <span>agent-authored PR review metadata</span>
+          </div>
+        </div>
+        <div class="toolbar" aria-label="Gallery actions">
+          <button class="iconButton" title="Search">⌕</button>
+          <button class="iconButton" title="Filter">≡</button>
+          <button class="tab active">Gallery</button>
+        </div>
+      </header>
+
+      <nav class="tabs" aria-label="Component groups">
+        <button class="tab active">Story</button>
+        <button class="tab">Evidence</button>
+        <button class="tab">Risk</button>
+        <button class="tab">Verification</button>
+        <button class="tab">Mobile</button>
+      </nav>
+
+      <section class="hero">
+        <div class="summary">
+          <p class="eyebrow">Mock PR</p>
+          <h1>Replace press-and-hold voice turns with explicit Start and Send controls</h1>
+          <p>
+            Submitted metadata says the agent changed the room control state,
+            updated the browser self-test path, and intentionally left Linux
+            speech synthesis verification outside this patch.
+          </p>
+          <div class="metaGrid">
+            <div class="metric"><strong>8</strong><span>changed files</span></div>
+            <div class="metric"><strong>3</strong><span>review areas</span></div>
+            <div class="metric"><strong>11</strong><span>evidence anchors</span></div>
+            <div class="metric"><strong>2</strong><span>open questions</span></div>
+          </div>
+        </div>
+
+        <aside class="module stack">
+          <div>
+            <p class="eyebrow">Sidecar status</p>
+            <h2>Metadata completeness</h2>
+          </div>
+          <div class="schemaRow">
+            <span>Intent, plan, assumptions</span>
+            <strong class="check">complete</strong>
+          </div>
+          <div class="schemaRow">
+            <span>Tests run and skipped</span>
+            <strong class="check">complete</strong>
+          </div>
+          <div class="schemaRow">
+            <span>Runtime screenshots</span>
+            <strong class="miss">missing</strong>
+          </div>
+          <div class="schemaRow">
+            <span>Evidence anchors validated</span>
+            <strong>9 / 11</strong>
+          </div>
+        </aside>
+      </section>
+
+      <section class="sectionTitle">
+        <div>
+          <p class="eyebrow">Story primitives</p>
+          <h2>Components for the PR narrative</h2>
+        </div>
+        <p>mock data</p>
+      </section>
+
+      <section class="galleryGrid">
+        <article class="tile span5">
+          <div class="topline">
+            <h3>Agent Intent Card</h3>
+            <span class="pill good">fact · high</span>
+          </div>
+          <p>
+            Move voice submission from pointer lifecycle events into explicit
+            turn commands while preventing overlapping LiveKit RPC calls.
+          </p>
+          <div class="pillRow">
+            <span class="pill info">behavior change</span>
+            <span class="pill">UI state</span>
+            <span class="pill">self-test updated</span>
+          </div>
+        </article>
+
+        <article class="tile span7">
+          <div class="topline">
+            <h3>Implementation Plan Timeline</h3>
+            <small>submitted by agent</small>
+          </div>
+          <div class="timeline">
+            <div class="timelineItem">
+              <span class="dot">1</span>
+              <div>
+                <strong>Introduce pending turn state</strong>
+                <p>Gate start/end actions while asynchronous RPCs are in flight.</p>
+              </div>
+              <span class="pill good">done</span>
+            </div>
+            <div class="timelineItem">
+              <span class="dot">2</span>
+              <div>
+                <strong>Replace hold interaction</strong>
+                <p>Change primary control labels and keyboard path to Start/Send.</p>
+              </div>
+              <span class="pill good">done</span>
+            </div>
+            <div class="timelineItem">
+              <span class="dot">3</span>
+              <div>
+                <strong>Update automated browser path</strong>
+                <p>Click Start and Send instead of simulating pointer release.</p>
+              </div>
+              <span class="pill warn">partial</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="tile span6">
+          <div class="topline">
+            <h3>Changed Area Map</h3>
+            <span class="pill warn">review order</span>
+          </div>
+          <div class="areaMap">
+            <div class="area">
+              <strong>Voice turn controls</strong>
+              <ul>
+                <li>FridayRoom.tsx</li>
+                <li>pending RPC guard</li>
+                <li>keyboard toggle path</li>
+              </ul>
+            </div>
+            <div class="area">
+              <strong>Verification path</strong>
+              <ul>
+                <li>friday-self-test.mjs</li>
+                <li>browser smoke notes</li>
+                <li>Linux speech blocker</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="tile span6">
+          <div class="topline">
+            <h3>Metadata Schema Slice</h3>
+            <small>candidate sidecar fields</small>
+          </div>
+          <div class="schemaGrid">
+            <div class="schemaRow"><span>agent.promptDigest</span><strong>text</strong></div>
+            <div class="schemaRow"><span>plan.steps[].evidenceIds</span><strong>array</strong></div>
+            <div class="schemaRow"><span>claims[].knowledgeState</span><strong>enum</strong></div>
+            <div class="schemaRow"><span>verification.skipped[].reason</span><strong>text</strong></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="sectionTitle">
+        <div>
+          <p class="eyebrow">Evidence primitives</p>
+          <h2>Components for trust and falsifiability</h2>
+        </div>
+        <p>anchors, claims, code</p>
+      </section>
+
+      <section class="galleryGrid">
+        <article class="tile span7">
+          <div class="topline">
+            <h3>Evidence-Backed Claim Matrix</h3>
+            <span class="pill good">9 anchors resolved</span>
+          </div>
+          <ul class="claimTable">
+            <li class="claim">
+              <div>
+                <p>Start and end requests are guarded while a turn-control RPC is pending.</p>
+                <div class="chipLine">
+                  <span class="evidenceChip">FridayRoom.tsx @@ -301</span>
+                  <span class="evidenceChip">FridayRoom.tsx @@ -871</span>
+                </div>
+              </div>
+              <span class="pill good">fact</span>
+            </li>
+            <li class="claim">
+              <div>
+                <p>Holding space may repeatedly toggle if browser keydown repeat is not suppressed.</p>
+                <div class="chipLine">
+                  <span class="evidenceChip">FridayRoom.tsx @@ -969</span>
+                </div>
+              </div>
+              <span class="pill warn">inference</span>
+            </li>
+            <li class="claim">
+              <div>
+                <p>The user-visible voice affordance remains clear on narrow mobile widths.</p>
+                <div class="chipLine">
+                  <span class="evidenceChip">screenshot: missing</span>
+                </div>
+              </div>
+              <span class="pill bad">unknown</span>
+            </li>
+          </ul>
+        </article>
+
+        <article class="tile span5">
+          <div class="topline">
+            <h3>Evidence Ledger</h3>
+            <small>resolver output</small>
+          </div>
+          <div class="ledger">
+            <div class="ledgerRow"><span>commit e034f46</span><strong class="check">resolved</strong></div>
+            <div class="ledgerRow"><span>comment IC_kwDOS...</span><strong class="check">resolved</strong></div>
+            <div class="ledgerRow"><span>hunk @@ -1348</span><strong class="check">resolved</strong></div>
+            <div class="ledgerRow"><span>screenshot mobile-send</span><strong class="miss">missing</strong></div>
+          </div>
+        </article>
+
+        <article class="diffBlock span12">
+          <div class="diffHeader">
+            <code>web/src/features/room/FridayRoom.tsx</code>
+            <span class="pill warn">annotated diff</span>
+          </div>
+          <div class="diffBody">
+            <div class="line del">
+              <span class="ln">1348</span>
+              <code class="code">- onPointerDown={startTurn} onPointerUp={endTurn}</code>
+              <span class="ann">old interaction model</span>
+            </div>
+            <div class="line add hot">
+              <span class="ln">1356</span>
+              <code class="code">+ onClick={isHolding ? sendTurn : startTurn}</code>
+              <span class="ann">risk: double toggle via keyboard repeat</span>
+            </div>
+            <div class="line add">
+              <span class="ln">1357</span>
+              <code class="code">+ disabled={turnControlPending}</code>
+              <span class="ann">claim: pending guard</span>
+            </div>
+            <div class="line add">
+              <span class="ln">1358</span>
+              <code class="code">+ {isHolding ? "Send" : "Start"}</code>
+              <span class="ann">intent: explicit controls</span>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="sectionTitle">
+        <div>
+          <p class="eyebrow">Review primitives</p>
+          <h2>Components for reviewer attention</h2>
+        </div>
+        <p>risks, tests, questions</p>
+      </section>
+
+      <section class="galleryGrid">
+        <article class="tile span4">
+          <div class="topline">
+            <h3>Risk Heat List</h3>
+            <span class="pill warn">2 active</span>
+          </div>
+          <div class="riskStack">
+            <div class="risk">
+              <div class="riskMeta">
+                <span class="pill warn">medium</span>
+                <span class="pill">inference</span>
+              </div>
+              <h3>Keyboard repeat may double-toggle the turn</h3>
+              <p>Verify `event.repeat` handling before approving the control path.</p>
+            </div>
+            <div class="risk">
+              <div class="riskMeta">
+                <span class="pill">low</span>
+                <span class="pill good">fact</span>
+              </div>
+              <h3>Voice self-test depends on platform speech tooling</h3>
+              <p>Keep the CI blocker separate from the Start/Send behavior review.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="tile span4">
+          <div class="topline">
+            <h3>Reviewer Question Queue</h3>
+            <span class="pill info">needs human</span>
+          </div>
+          <div class="questionStack">
+            <div class="question">
+              <h3>What happens if `end_turn` fails after the UI clears active state?</h3>
+              <p>Failure behavior is not proven by the diff or submitted verification.</p>
+            </div>
+            <div class="question">
+              <h3>Should the Start/Send control retain pointer capture for accessibility?</h3>
+              <p>The old event model disappeared; the new keyboard model needs review.</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="tile span4">
+          <div class="topline">
+            <h3>Verification Ledger</h3>
+            <span class="pill warn">mixed</span>
+          </div>
+          <div class="ledger">
+            <div class="ledgerRow"><span>TypeScript build</span><strong class="check">passed</strong></div>
+            <div class="ledgerRow"><span>desktop browser smoke</span><strong class="check">passed</strong></div>
+            <div class="ledgerRow"><span>mobile browser smoke</span><strong class="check">passed</strong></div>
+            <div class="ledgerRow"><span>Linux speech self-test</span><strong class="miss">blocked</strong></div>
+          </div>
+        </article>
+
+        <article class="tile span8">
+          <div class="topline">
+            <h3>File-To-Behavior Matrix</h3>
+            <span class="pill info">coverage map</span>
+          </div>
+          <div class="matrix">
+            <table>
+              <thead>
+                <tr>
+                  <th>File</th>
+                  <th>Behavior</th>
+                  <th>Test Evidence</th>
+                  <th>Review Focus</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><code>FridayRoom.tsx</code></td>
+                  <td>Voice turn lifecycle</td>
+                  <td>browser smoke</td>
+                  <td>RPC failure and keyboard repeat</td>
+                </tr>
+                <tr>
+                  <td><code>friday-self-test.mjs</code></td>
+                  <td>Automated Start/Send flow</td>
+                  <td>script updated</td>
+                  <td>blocked speech dependency</td>
+                </tr>
+                <tr>
+                  <td><code>codex.py</code></td>
+                  <td>Model choices</td>
+                  <td>none required</td>
+                  <td>scope creep relative to PR intent</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="tile span4">
+          <div class="topline">
+            <h3>Attention Mix</h3>
+            <small>review time allocation</small>
+          </div>
+          <div class="riskBar" aria-label="Risk distribution">
+            <span></span><span></span><span></span><span></span>
+          </div>
+          <div class="pillRow" style="margin-top: 12px">
+            <span class="pill good">behavior 44%</span>
+            <span class="pill warn">tests 30%</span>
+            <span class="pill bad">risk 16%</span>
+            <span class="pill info">scope 10%</span>
+          </div>
+        </article>
+      </section>
+
+      <section class="sectionTitle">
+        <div>
+          <p class="eyebrow">Mobile primitives</p>
+          <h2>Phone-shaped review surfaces</h2>
+        </div>
+        <p>single-column components</p>
+      </section>
+
+      <section class="galleryGrid">
+        <article class="module span6">
+          <div class="topline">
+            <h3>Compact Review Stack</h3>
+            <span class="pill info">mobile</span>
+          </div>
+          <div class="miniPreview">
+            <div class="tile">
+              <p class="eyebrow">Next file</p>
+              <h3>FridayRoom.tsx</h3>
+              <p>Behavior change, pending guard, keyboard path.</p>
+              <div class="pillRow">
+                <span class="pill warn">medium risk</span>
+                <span class="pill">4 anchors</span>
+              </div>
+            </div>
+            <div class="tile">
+              <p class="eyebrow">Decision</p>
+              <h3>Needs one manual check</h3>
+              <p>Spacebar repeat behavior is not proven by current evidence.</p>
+              <span class="pill warn">do before approve</span>
+            </div>
+          </div>
+        </article>
+
+        <aside class="span6 phoneFrame">
+          <div class="phoneScreen">
+            <div class="tile">
+              <p class="eyebrow">Reviewer intent</p>
+              <h3>Verify explicit Start/Send controls</h3>
+              <p>Focus on turn state, RPC failure, keyboard repeat, and test updates.</p>
+            </div>
+            <div class="tile">
+              <div class="topline">
+                <h3>Current risk</h3>
+                <span class="pill warn">medium</span>
+              </div>
+              <p>Holding space may generate repeated keydown events.</p>
+            </div>
+            <div class="tile">
+              <div class="topline">
+                <h3>Evidence</h3>
+                <span class="pill good">resolved</span>
+              </div>
+              <span class="evidenceChip">FridayRoom.tsx @@ -969</span>
+            </div>
+            <nav class="bottomNav" aria-label="Phone review tabs">
+              <button class="active">Story</button>
+              <button>Files</button>
+              <button>Risks</button>
+              <button>Tests</button>
+            </nav>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </body>
+</html>
