@@ -644,7 +644,7 @@ export function HomePage(): React.ReactNode {
         )}
       </div>
 
-      <div className="sticky bottom-0 z-30 -mx-4 flex flex-wrap items-center justify-center gap-2 border-t border-border bg-background/90 px-4 py-3 shadow-2xl shadow-black/40 backdrop-blur sm:-mx-6 sm:px-6">
+      <div className="sticky bottom-0 z-30 -mx-4 flex min-h-20 flex-wrap items-center justify-center gap-x-2 gap-y-3 border-t border-border bg-background/90 px-4 py-4 shadow-2xl shadow-black/40 backdrop-blur sm:-mx-6 sm:px-6">
         <Button
           variant="outline"
           className="h-11 w-32"
