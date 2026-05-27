@@ -1,6 +1,5 @@
 import { Outlet } from 'react-router';
 
-import { Navbar } from './Navbar';
 import { ProjectTreePanel } from '@/components/ProjectTreePanel';
 import { DiffSettingsProvider } from '@/lib/DiffSettingsProvider';
 import { ReviewSessionProvider } from '@/lib/review-state';
@@ -11,9 +10,8 @@ export function RootLayout(): React.ReactNode {
     <DiffSettingsProvider>
       <ReviewSessionProvider>
         <div className="flex min-h-full flex-col bg-background text-foreground">
-          <Navbar />
           <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[21rem_minmax(0,1fr)]">
-            <div className="min-h-[22rem] lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:min-h-0 self-start">
+            <div className="min-h-[22rem] self-start lg:sticky lg:top-0 lg:h-screen lg:min-h-0">
               <ProjectTreePanel />
             </div>
             <main className="min-w-0">

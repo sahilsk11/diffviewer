@@ -166,7 +166,7 @@ describe('HomePage', () => {
     renderWithProviders(<App />);
 
     expect(await screen.findByText('PR title')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'OWNER/REPO #123' })).toBeInTheDocument();
+    expect(screen.getByText('OWNER/REPO #123')).toBeInTheDocument();
     expect(screen.getByText('1 / 1')).toBeInTheDocument();
     expect(screen.queryByLabelText('GitHub pull request URL')).not.toBeInTheDocument();
     expect(screen.queryByText('unreviewed')).not.toBeInTheDocument();

@@ -443,7 +443,7 @@ export function HomePage(): React.ReactNode {
   }
 
   return (
-    <section className="flex min-h-[calc(100vh-3.5rem)] w-full flex-col gap-4 px-4 py-5 sm:px-6">
+    <section className="flex min-h-screen w-full flex-col gap-4 px-4 py-5 sm:px-6">
       {formError !== null ? (
         <p className="text-sm text-danger" role="alert">
           {formError}

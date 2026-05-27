@@ -9,7 +9,7 @@ describe('App', () => {
   it('renders the root diff shell', () => {
     renderWithProviders(<App />);
 
-    expect(screen.getByRole('navigation', { name: 'Primary' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Project tree')).toBeInTheDocument();
     expect(screen.getByLabelText('Pull request diff')).toBeInTheDocument();
   });
 
