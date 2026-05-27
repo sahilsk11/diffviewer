@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { isApiError } from '@/lib/api';
 import { diffviewerApi } from '@/lib/diffviewer-api';
 
 function mockJsonResponse(body: unknown): Response {
@@ -79,5 +80,29 @@ describe('diffviewerApi', () => {
       startSide: 'RIGHT',
     });
     expect(String(init.body)).not.toContain('position');
+  });
+
+  it('explains empty gateway errors from an unavailable backend', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response('', {
+          headers: { 'Content-Type': 'text/plain' },
+          status: 502,
+          statusText: '',
+        }),
+      ),
+    );
+
+    try {
+      await diffviewerApi.loadPullRequest('https://github.com/OWNER/REPO/pull/123');
+      throw new Error('Expected request to fail');
+    } catch (error) {
+      expect(isApiError(error)).toBe(true);
+      if (!isApiError(error)) throw error;
+      expect(error.message).toBe(
+        'API server unavailable. Check that the backend is running and the API proxy or base URL is configured.',
+      );
+    }
   });
 });
