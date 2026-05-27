@@ -48,6 +48,87 @@ interface CommentMetadata {
 
 type CommentAnnotation = DiffLineAnnotation<CommentMetadata>;
 
+const hunkSeparatorCSS = `
+  [data-separator=line-info] {
+    height: 36px;
+    margin-block: 10px;
+    background: var(--diffs-bg);
+  }
+
+  [data-separator=line-info][data-separator-first] {
+    margin-top: 10px;
+  }
+
+  [data-separator=line-info][data-separator-last] {
+    margin-bottom: 10px;
+  }
+
+  [data-separator=line-info] [data-separator-wrapper] {
+    min-width: 0;
+    padding-inline: 12px;
+    background: transparent;
+  }
+
+  [data-separator=line-info][data-expand-index] [data-separator-wrapper] {
+    grid-template-columns: 34px minmax(0, 1fr);
+  }
+
+  [data-separator=line-info] [data-expand-button],
+  [data-separator=line-info] [data-separator-content] {
+    background: #020617;
+    border-block: 1px solid #1f2937;
+  }
+
+  [data-separator=line-info] [data-expand-button] {
+    min-width: 34px;
+    color: #94a3b8;
+    border-left: 1px solid #1f2937;
+    border-right: 0;
+    border-radius: 8px 0 0 8px;
+  }
+
+  [data-separator=line-info] [data-expand-button]:hover {
+    color: #e5e7eb;
+    background: #0f172a;
+  }
+
+  [data-separator=line-info] [data-separator-content] {
+    gap: 8px;
+    color: #f8fafc;
+    border-right: 1px solid #1f2937;
+    border-radius: 0 8px 8px 0;
+    font-size: 12px;
+    font-weight: 500;
+    justify-content: center;
+    letter-spacing: 0;
+    padding-inline: 12px;
+  }
+
+  [data-separator=line-info] [data-separator-content]:hover {
+    background: #0f172a;
+    text-decoration: none;
+  }
+
+  [data-separator=line-info] [data-unmodified-lines] {
+    color: #f8fafc;
+    text-decoration: underline;
+    text-decoration-color: rgb(148 163 184 / 0.8);
+    text-underline-offset: 3px;
+  }
+
+  [data-separator=line-info] [data-separator-content]::after {
+    color: #94a3b8;
+    content: "\\2022  expand all";
+    flex: 0 0 auto;
+    font-weight: 400;
+  }
+
+  [data-separator=line-info] [data-icon] {
+    width: 14px;
+    height: 14px;
+  }
+`;
+
 function DiffLoadingState({ label }: { label: string }): React.ReactNode {
   return (
     <div className="flex h-full min-h-[28rem] flex-col bg-card" role="status" aria-live="polite">
@@ -298,6 +379,8 @@ export function HomePage(): React.ReactNode {
       themeType: 'dark' as const,
       diffStyle: layout,
       diffIndicators,
+      hunkSeparators: 'line-info' as const,
+      unsafeCSS: hunkSeparatorCSS,
       lineDiffType,
       overflow: wrapLines ? ('wrap' as const) : ('scroll' as const),
       disableLineNumbers: !showLineNumbers,
