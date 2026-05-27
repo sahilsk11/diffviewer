@@ -13,7 +13,7 @@ export function RootLayout(): React.ReactNode {
         <div className="flex min-h-full flex-col bg-background text-foreground">
           <Navbar />
           <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[21rem_minmax(0,1fr)]">
-            <div className="min-h-[22rem] lg:h-[calc(100vh-3.5rem)] lg:min-h-0">
+            <div className="min-h-[22rem] lg:sticky lg:top-14 lg:h-[calc(100vh-3.5rem)] lg:min-h-0 self-start">
               <ProjectTreePanel />
             </div>
             <main className="min-w-0">
