@@ -260,7 +260,7 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
           } as CSSProperties
         }
       />
-      <div className="shrink-0 border-t border-border px-3 py-2 text-xs text-muted-foreground">
+      <div className="flex min-h-20 shrink-0 items-center border-t border-border px-3 py-4 text-xs text-muted-foreground">
         {footer}
       </div>
     </aside>

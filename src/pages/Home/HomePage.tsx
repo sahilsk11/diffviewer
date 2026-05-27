@@ -583,14 +583,14 @@ export function HomePage(): React.ReactNode {
   }
 
   return (
-    <section className="flex min-h-screen w-full flex-col gap-4 px-4 pb-28 pt-5 sm:px-6">
+    <section className="flex min-h-screen w-full flex-col gap-5 px-4 pb-28 pt-8 sm:px-6">
       {formError !== null ? (
         <p className="text-sm text-danger" role="alert">
           {formError}
         </p>
       ) : null}
 
-      <div className="flex w-full items-start justify-between gap-4">
+      <div className="flex w-full items-center justify-between gap-4">
         {loadPullRequest.isPending && pullRequest === null ? (
           <div className="min-w-0 flex-1 space-y-2">
             <Skeleton className="h-5 w-full max-w-lg" />
