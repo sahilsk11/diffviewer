@@ -583,7 +583,7 @@ export function HomePage(): React.ReactNode {
   }
 
   return (
-    <section className="flex min-h-screen w-full flex-col gap-5 px-4 pb-28 pt-8 sm:px-6">
+    <section className="flex min-h-screen w-full flex-col gap-5 px-4 pt-8 sm:px-6">
       {formError !== null ? (
         <p className="text-sm text-danger" role="alert">
           {formError}
@@ -613,7 +613,7 @@ export function HomePage(): React.ReactNode {
       ) : null}
 
       <div
-        className="min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
+        className="mb-24 min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
         aria-label="Pull request diff"
       >
         {pullRequest === null ? (
