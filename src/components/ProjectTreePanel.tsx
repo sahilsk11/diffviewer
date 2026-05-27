@@ -1,7 +1,7 @@
 import { type GitStatus, type GitStatusEntry } from '@pierre/trees';
 import { FileTree, useFileTree } from '@pierre/trees/react';
 import { useQuery } from '@tanstack/react-query';
-import { Settings, WrapText } from 'lucide-react';
+import { PanelLeftClose, Settings, WrapText } from 'lucide-react';
 import { type CSSProperties, memo, useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,10 @@ import { useReviewSession } from '@/lib/review-state';
 
 type TreeMode = 'modified' | 'full';
 
+interface ProjectTreePanelProps {
+  onCollapse: () => void;
+}
+
 function toGitStatus(status: string): GitStatus {
   if (status === 'added') return 'added';
   if (status === 'removed') return 'deleted';
@@ -29,7 +33,9 @@ function toGitStatus(status: string): GitStatus {
   return 'modified';
 }
 
-export const ProjectTreePanel = memo(function ProjectTreePanel(): React.ReactNode {
+export const ProjectTreePanel = memo(function ProjectTreePanel({
+  onCollapse,
+}: ProjectTreePanelProps): React.ReactNode {
   const { pullRequest, selectedPath, setSelectedPath } = useReviewSession();
   const {
     diffIndicators,
@@ -132,6 +138,15 @@ export const ProjectTreePanel = memo(function ProjectTreePanel(): React.ReactNod
       aria-label="Project tree"
     >
       <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-label="Hide sidebar"
+          className="shrink-0"
+          onClick={onCollapse}
+        >
+          <PanelLeftClose className="size-4" />
+        </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" aria-label="Diff settings" className="shrink-0">
