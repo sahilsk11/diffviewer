@@ -8,10 +8,18 @@ import {
   Virtualizer,
 } from '@pierre/diffs/react';
 import { type QueryKey, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, CircleCheckBig, ExternalLink, Flag, SkipForward } from 'lucide-react';
+import {
+  ChevronLeft,
+  CircleCheckBig,
+  ExternalLink,
+  Flag,
+  LoaderCircle,
+  SkipForward,
+} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { isApiError } from '@/lib/api';
 import { useDiffSettings } from '@/lib/diff-settings';
@@ -39,6 +47,38 @@ interface CommentMetadata {
 }
 
 type CommentAnnotation = DiffLineAnnotation<CommentMetadata>;
+
+function DiffLoadingState({ label }: { label: string }): React.ReactNode {
+  return (
+    <div className="flex h-full min-h-[28rem] flex-col bg-card" role="status" aria-live="polite">
+      <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border px-4">
+        <LoaderCircle className="size-4 animate-spin text-accent" />
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <Skeleton className="ml-auto h-5 w-20" />
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-border">
+        {[0, 1].map((column) => (
+          <div key={column} className="min-w-0 space-y-2 p-4">
+            <div className="mb-4 flex items-center gap-3">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-14" />
+            </div>
+            {Array.from({ length: 16 }, (_, index) => (
+              <div key={index} className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3">
+                <Skeleton className="h-4 w-8" />
+                <Skeleton
+                  className={
+                    index % 5 === 0 ? 'h-4 w-2/3' : index % 3 === 0 ? 'h-4 w-5/6' : 'h-4 w-full'
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function annotationKey(side: AnnotationSide, lineNumber: number): string {
   return `${side}:${lineNumber}`;
@@ -468,9 +508,16 @@ export function HomePage(): React.ReactNode {
       ) : null}
 
       <div className="flex w-full items-start justify-between gap-4">
-        <h1 className="min-w-0 truncate text-base font-semibold text-foreground">
-          {pullRequest?.title ?? 'No pull request loaded'}
-        </h1>
+        {loadPullRequest.isPending && pullRequest === null ? (
+          <div className="min-w-0 flex-1 space-y-2">
+            <Skeleton className="h-5 w-full max-w-lg" />
+            <Skeleton className="h-3 w-56" />
+          </div>
+        ) : (
+          <h1 className="min-w-0 truncate text-base font-semibold text-foreground">
+            {pullRequest?.title ?? 'No pull request loaded'}
+          </h1>
+        )}
         <span className="shrink-0 rounded-md border border-border bg-elevated px-2.5 py-1 text-xs font-medium text-muted-foreground">
           {files.length === 0 ? '0 / 0' : `${currentIndex + 1} / ${files.length}`}
         </span>
@@ -487,17 +534,19 @@ export function HomePage(): React.ReactNode {
         aria-label="Pull request diff"
       >
         {pullRequest === null ? (
-          <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-            No pull request loaded
-          </div>
+          loadPullRequest.isPending ? (
+            <DiffLoadingState label="Loading pull request" />
+          ) : (
+            <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+              No pull request loaded
+            </div>
+          )
         ) : contentQuery.isError ? (
           <div className="flex h-full items-center justify-center px-6 text-sm text-danger">
             {errorText(contentQuery.error)}
           </div>
         ) : contentQuery.isLoading || currentChange === null ? (
-          <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-            Loading diff
-          </div>
+          <DiffLoadingState label="Loading diff" />
         ) : (
           <Virtualizer key={currentChange.id} className="h-full" contentClassName="min-w-full">
             <MultiFileDiff
