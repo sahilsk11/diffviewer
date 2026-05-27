@@ -12,6 +12,7 @@
     "fixtures:generate:golden": "node scripts/generate-fixture.mjs friday#37 overwatch#9"
   },
   "dependencies": {
+    "@pierre/diffs": "^1.2.3",
     "lucide-react": "^1.16.0",
     "react": "latest",
     "react-dom": "latest"
