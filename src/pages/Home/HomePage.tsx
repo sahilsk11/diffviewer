@@ -383,11 +383,27 @@ export function HomePage(): React.ReactNode {
     }));
   }
 
+  function handleCommentKeyDown(
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+    annotation: CommentAnnotation,
+  ): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      removeComment(annotation.metadata.id);
+      return;
+    }
+
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      void saveComment(annotation);
+    }
+  }
+
   function renderAnnotation(annotation: CommentAnnotation): React.ReactNode {
     const { metadata } = annotation;
 
     return (
-      <div className="mx-4 my-2 rounded-md border border-border bg-elevated p-3 shadow-lg shadow-black/20">
+      <div className="mx-4 my-2 rounded-md border border-border bg-elevated p-3 font-sans shadow-lg shadow-black/20">
         <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{metadata.author}</span>
           <span>
@@ -414,10 +430,11 @@ export function HomePage(): React.ReactNode {
         ) : (
           <div className="space-y-3">
             <Textarea
-              className="min-h-20"
+              className="min-h-20 font-sans leading-5"
               placeholder="Add a line comment..."
               value={metadata.draft}
               onChange={(event) => updateDraft(metadata.id, event.target.value)}
+              onKeyDown={(event) => handleCommentKeyDown(event, annotation)}
             />
             {metadata.error !== null ? (
               <p className="text-xs text-danger" role="alert">
@@ -443,7 +460,7 @@ export function HomePage(): React.ReactNode {
   }
 
   return (
-    <section className="flex min-h-screen w-full flex-col gap-4 px-4 py-5 sm:px-6">
+    <section className="flex min-h-screen w-full flex-col gap-4 px-4 pb-28 pt-5 sm:px-6">
       {formError !== null ? (
         <p className="text-sm text-danger" role="alert">
           {formError}
@@ -495,7 +512,7 @@ export function HomePage(): React.ReactNode {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-center gap-2">
+      <div className="sticky bottom-0 z-30 -mx-4 flex flex-wrap items-center justify-center gap-2 border-t border-border bg-background/90 px-4 py-3 shadow-2xl shadow-black/40 backdrop-blur sm:-mx-6 sm:px-6">
         <Button
           variant="outline"
           className="h-11 w-32"
