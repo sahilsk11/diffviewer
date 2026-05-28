@@ -21,15 +21,31 @@ export const diffviewerApi = {
   loadPullRequest: (url: string) =>
     apiClient.post<PullRequestDetails>('/api/pull-requests/load', { url }),
 
-  getPullRequestFiles: (ref: PullRequestRef) =>
-    apiClient.get<PullRequestFilesResponse>(`${pullRequestPath(ref)}/files`),
+  getPullRequestFiles: (
+    ref: PullRequestRef,
+    revision?: Pick<PullRequestDetails, 'baseSha' | 'headSha'>,
+  ) =>
+    apiClient.get<PullRequestFilesResponse>(
+      `${pullRequestPath(ref)}/files${
+        revision === undefined
+          ? ''
+          : `?baseSha=${encodeQuery(revision.baseSha)}&headSha=${encodeQuery(revision.headSha)}`
+      }`,
+    ),
 
-  getRepositoryTree: (ref: PullRequestRef) =>
-    apiClient.get<RepositoryTree>(`${pullRequestPath(ref)}/tree`),
+  getRepositoryTree: (ref: PullRequestRef, headSha: string) =>
+    apiClient.get<RepositoryTree>(`${pullRequestPath(ref)}/tree?headSha=${encodeQuery(headSha)}`),
 
-  getFileContents: (ref: PullRequestRef, path: string, side: FileSide) =>
+  getFileContents: (
+    ref: PullRequestRef,
+    path: string,
+    side: FileSide,
+    revision: Pick<PullRequestDetails, 'baseSha' | 'headSha'>,
+  ) =>
     apiClient.get<FileContentsResponse>(
-      `${pullRequestPath(ref)}/contents?path=${encodeQuery(path)}&side=${side}`,
+      `${pullRequestPath(ref)}/contents?path=${encodeQuery(path)}&side=${side}&baseSha=${encodeQuery(
+        revision.baseSha,
+      )}&headSha=${encodeQuery(revision.headSha)}`,
     ),
 
   updateFileState: (ref: PullRequestRef, path: string, state: ReviewStateValue) =>

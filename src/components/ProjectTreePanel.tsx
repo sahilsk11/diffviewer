@@ -65,7 +65,7 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
     ],
     queryFn: () => {
       if (pullRequest === null) throw new Error('Pull request is required.');
-      return diffviewerApi.getRepositoryTree(pullRequest.ref);
+      return diffviewerApi.getRepositoryTree(pullRequest.ref, pullRequest.headSha);
     },
     enabled: mode === 'full' && pullRequest !== null,
     staleTime: Number.POSITIVE_INFINITY,

@@ -17,6 +17,12 @@ class ParsedPullRequestUrl:
     pull_number: int
 
 
+@dataclass(frozen=True)
+class PullRequestRevision:
+    base_sha: str
+    head_sha: str
+
+
 class PullRequestUrlError(ValueError):
     pass
 
@@ -69,9 +75,30 @@ class PullRequestService:
             read_state=read_state,
         )
 
-    async def files(self, owner: str, repo: str, pull_number: int) -> list[PullRequestFile]:
-        file_payloads = await self._files(owner, repo, pull_number)
+    async def files(
+        self,
+        owner: str,
+        repo: str,
+        pull_number: int,
+        *,
+        force_refresh: bool = False,
+    ) -> list[PullRequestFile]:
+        file_payloads = await self._files(owner, repo, pull_number, force_refresh)
         return [map_pull_request_file(file_payload) for file_payload in file_payloads]
+
+    async def revision(
+        self,
+        owner: str,
+        repo: str,
+        pull_number: int,
+        *,
+        force_refresh: bool = False,
+    ) -> PullRequestRevision:
+        pr_payload = await self._pull_request(owner, repo, pull_number, force_refresh)
+        return PullRequestRevision(
+            base_sha=pr_payload["base"]["sha"],
+            head_sha=pr_payload["head"]["sha"],
+        )
 
     async def _pull_request(
         self,

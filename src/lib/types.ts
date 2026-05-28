@@ -72,6 +72,7 @@ export interface CommentCreate {
   path: string;
   line: number;
   side: FileSide;
+  headSha: string;
   startLine?: number;
   startSide?: FileSide;
 }

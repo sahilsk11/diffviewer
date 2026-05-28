@@ -122,7 +122,13 @@ def test_comment_route_maps_single_line_payload(tmp_path: Path) -> None:
     with TestClient(app) as client:
         response = client.post(
             "/api/repos/OWNER/REPO/pulls/123/comments",
-            json={"body": "Comment text", "path": "src/example.ts", "line": 42, "side": "RIGHT"},
+            json={
+                "body": "Comment text",
+                "path": "src/example.ts",
+                "line": 42,
+                "side": "RIGHT",
+                "headSha": "head_sha",
+            },
         )
 
     assert response.status_code == 200
@@ -180,6 +186,7 @@ def test_comment_route_maps_multi_line_payload(tmp_path: Path) -> None:
                 "path": "src/example.ts",
                 "line": 42,
                 "side": "RIGHT",
+                "headSha": "head_sha",
                 "startLine": 40,
                 "startSide": "RIGHT",
             },
@@ -191,6 +198,162 @@ def test_comment_route_maps_multi_line_payload(tmp_path: Path) -> None:
         b'{"body":"Comment text","commit_id":"head_sha","path":"src/example.ts",'
         b'"line":42,"side":"RIGHT","start_line":40,"start_side":"RIGHT"}'
     )
+
+
+@respx.mock
+def test_comment_route_rejects_stale_head_sha(tmp_path: Path) -> None:
+    respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "title": "PR title",
+                "html_url": "https://github.com/OWNER/REPO/pull/123",
+                "base": {"sha": "base_sha"},
+                "head": {"sha": "new_head_sha", "ref": "branch-name"},
+                "user": {"login": "login"},
+            },
+        ),
+    )
+    respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123/files").mock(
+        return_value=httpx.Response(200, json=[]),
+    )
+    comment_route = respx.post("https://api.github.test/repos/OWNER/REPO/pulls/123/comments").mock(
+        return_value=httpx.Response(500, json={"message": "should not post"}),
+    )
+    app = create_app(
+        Settings(
+            github_api_base_url="https://api.github.test",
+            diffviewer_db_path=tmp_path / "test.sqlite3",
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/repos/OWNER/REPO/pulls/123/comments",
+            json={
+                "body": "Comment text",
+                "path": "src/example.ts",
+                "line": 42,
+                "side": "RIGHT",
+                "headSha": "old_head_sha",
+            },
+        )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "error": "Pull request changed. Refresh before commenting.",
+        "code": "stale_pull_request",
+        "currentHeadSha": "new_head_sha",
+        "expectedHeadSha": "old_head_sha",
+    }
+    assert not comment_route.called
+
+
+@respx.mock
+def test_files_route_rejects_stale_revision(tmp_path: Path) -> None:
+    respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "title": "PR title",
+                "html_url": "https://github.com/OWNER/REPO/pull/123",
+                "base": {"sha": "base_sha"},
+                "head": {"sha": "new_head_sha", "ref": "branch-name"},
+                "user": {"login": "login"},
+            },
+        ),
+    )
+    files_route = respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123/files").mock(
+        return_value=httpx.Response(500, json={"message": "should not list files"}),
+    )
+    app = create_app(
+        Settings(
+            github_api_base_url="https://api.github.test",
+            diffviewer_db_path=tmp_path / "test.sqlite3",
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/repos/OWNER/REPO/pulls/123/files",
+            params={"baseSha": "old_base_sha", "headSha": "old_head_sha"},
+        )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "error": "Pull request changed. Refresh before viewing files.",
+        "code": "stale_pull_request",
+        "currentBaseSha": "base_sha",
+        "currentHeadSha": "new_head_sha",
+        "expectedBaseSha": "old_base_sha",
+        "expectedHeadSha": "old_head_sha",
+    }
+    assert not files_route.called
+
+
+@respx.mock
+def test_files_route_force_refreshes_files_after_revision_match(tmp_path: Path) -> None:
+    respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "title": "PR title",
+                "html_url": "https://github.com/OWNER/REPO/pull/123",
+                "base": {"sha": "base_sha"},
+                "head": {"sha": "head_sha", "ref": "branch-name"},
+                "user": {"login": "login"},
+            },
+        ),
+    )
+    files_route = respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123/files").mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                json=[
+                    {
+                        "filename": "src/old.ts",
+                        "status": "modified",
+                        "additions": 1,
+                        "deletions": 1,
+                        "changes": 2,
+                        "patch": "@@ old",
+                    },
+                ],
+            ),
+            httpx.Response(
+                200,
+                json=[
+                    {
+                        "filename": "src/current.ts",
+                        "status": "modified",
+                        "additions": 2,
+                        "deletions": 1,
+                        "changes": 3,
+                        "patch": "@@ current",
+                    },
+                ],
+            ),
+        ],
+    )
+    app = create_app(
+        Settings(
+            github_api_base_url="https://api.github.test",
+            diffviewer_db_path=tmp_path / "test.sqlite3",
+        ),
+    )
+
+    with TestClient(app) as client:
+        cached_response = client.get("/api/repos/OWNER/REPO/pulls/123/files")
+        guarded_response = client.get(
+            "/api/repos/OWNER/REPO/pulls/123/files",
+            params={"baseSha": "base_sha", "headSha": "head_sha"},
+        )
+
+    assert cached_response.status_code == 200
+    assert cached_response.json()["files"][0]["path"] == "src/old.ts"
+    assert guarded_response.status_code == 200
+    assert guarded_response.json()["files"][0]["path"] == "src/current.ts"
+    assert len(files_route.calls) == 2
 
 
 @respx.mock
@@ -242,7 +405,12 @@ def test_contents_route_uses_base_tree_for_left_side(tmp_path: Path) -> None:
     with TestClient(app) as client:
         response = client.get(
             "/api/repos/OWNER/REPO/pulls/123/contents",
-            params={"path": "src/example.ts", "side": "LEFT"},
+            params={
+                "path": "src/example.ts",
+                "side": "LEFT",
+                "baseSha": "base_sha",
+                "headSha": "head_sha",
+            },
         )
 
     assert response.status_code == 200
@@ -253,6 +421,56 @@ def test_contents_route_uses_base_tree_for_left_side(tmp_path: Path) -> None:
         "contents": "base content",
     }
     assert base_tree_route.called
+
+
+@respx.mock
+def test_contents_route_rejects_stale_revision(tmp_path: Path) -> None:
+    respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "title": "PR title",
+                "html_url": "https://github.com/OWNER/REPO/pull/123",
+                "base": {"sha": "base_sha"},
+                "head": {"sha": "new_head_sha", "ref": "branch-name"},
+                "user": {"login": "login"},
+            },
+        ),
+    )
+    respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123/files").mock(
+        return_value=httpx.Response(200, json=[]),
+    )
+    tree_route = respx.get("https://api.github.test/repos/OWNER/REPO/git/trees/old_head_sha").mock(
+        return_value=httpx.Response(500, json={"message": "should not load tree"}),
+    )
+    app = create_app(
+        Settings(
+            github_api_base_url="https://api.github.test",
+            diffviewer_db_path=tmp_path / "test.sqlite3",
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.get(
+            "/api/repos/OWNER/REPO/pulls/123/contents",
+            params={
+                "path": "src/example.ts",
+                "side": "RIGHT",
+                "baseSha": "base_sha",
+                "headSha": "old_head_sha",
+            },
+        )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == {
+        "error": "Pull request changed. Refresh before viewing files.",
+        "code": "stale_pull_request",
+        "currentBaseSha": "base_sha",
+        "currentHeadSha": "new_head_sha",
+        "expectedBaseSha": "base_sha",
+        "expectedHeadSha": "old_head_sha",
+    }
+    assert not tree_route.called
 
 
 @respx.mock
@@ -268,9 +486,6 @@ def test_contents_route_reuses_cached_pull_request_tree_and_blob(tmp_path: Path)
                 "user": {"login": "login"},
             },
         ),
-    )
-    files_route = respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123/files").mock(
-        return_value=httpx.Response(200, json=[]),
     )
     tree_route = respx.get("https://api.github.test/repos/OWNER/REPO/git/trees/head_sha").mock(
         return_value=httpx.Response(
@@ -304,17 +519,26 @@ def test_contents_route_reuses_cached_pull_request_tree_and_blob(tmp_path: Path)
     with TestClient(app) as client:
         first_response = client.get(
             "/api/repos/OWNER/REPO/pulls/123/contents",
-            params={"path": "src/example.ts", "side": "RIGHT"},
+            params={
+                "path": "src/example.ts",
+                "side": "RIGHT",
+                "baseSha": "base_sha",
+                "headSha": "head_sha",
+            },
         )
         second_response = client.get(
             "/api/repos/OWNER/REPO/pulls/123/contents",
-            params={"path": "src/example.ts", "side": "RIGHT"},
+            params={
+                "path": "src/example.ts",
+                "side": "RIGHT",
+                "baseSha": "base_sha",
+                "headSha": "head_sha",
+            },
         )
 
     assert first_response.status_code == 200
     assert second_response.status_code == 200
     assert second_response.json()["contents"] == "head content"
-    assert len(pr_route.calls) == 1
-    assert len(files_route.calls) == 1
+    assert len(pr_route.calls) == 2
     assert len(tree_route.calls) == 1
     assert len(blob_route.calls) == 1

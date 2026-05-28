@@ -49,7 +49,7 @@ describe('ProjectTreePanel', () => {
           json({ path: 'src/example.ts', side: 'RIGHT', sha: 'b', contents: 'new' }),
         );
       }
-      if (url.endsWith('/tree')) {
+      if (url.includes('/tree?')) {
         return Promise.resolve(
           json({
             headSha: 'head_sha',
@@ -70,12 +70,12 @@ describe('ProjectTreePanel', () => {
     renderWithProviders(<App />);
 
     await screen.findByText('PR title');
-    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/tree'))).toBe(false);
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/tree?'))).toBe(false);
 
     await user.click(screen.getByRole('radio', { name: 'Full' }));
 
     await waitFor(() => {
-      expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/tree'))).toBe(true);
+      expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/tree?'))).toBe(true);
     });
   });
 });
