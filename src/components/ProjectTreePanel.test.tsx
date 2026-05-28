@@ -65,7 +65,7 @@ describe('ProjectTreePanel', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
-    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 

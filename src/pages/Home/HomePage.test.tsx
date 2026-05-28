@@ -235,7 +235,7 @@ describe('HomePage', () => {
   it('loads a pull request from the pr URL parameter and marks the current file approved', async () => {
     const fetchMock = setupFetch();
     const user = userEvent.setup();
-    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 
@@ -267,7 +267,7 @@ describe('HomePage', () => {
 
   it('loads a pull request from the pr URL parameter', async () => {
     const fetchMock = setupFetch();
-    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 
@@ -284,7 +284,7 @@ describe('HomePage', () => {
   it('updates the rendered diff when button navigation selects the next file', async () => {
     const fetchMock = setupTwoFileFetch();
     const user = userEvent.setup();
-    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 
@@ -311,7 +311,7 @@ describe('HomePage', () => {
 
   it('loads the selected file from the page URL parameter', async () => {
     const fetchMock = setupTwoFileFetch();
-    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123&page=2');
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123&page=2');
 
     renderWithProviders(<App />);
 
@@ -328,7 +328,7 @@ describe('HomePage', () => {
   it('shows a completion view after the final file is reviewed', async () => {
     const fetchMock = setupTwoFileFetch();
     const user = userEvent.setup();
-    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 
@@ -374,7 +374,7 @@ describe('HomePage', () => {
     setupTwoFileFetch();
     const { intents, startViewTransition } = setupViewTransition();
     const user = userEvent.setup();
-    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 
@@ -402,7 +402,7 @@ describe('HomePage', () => {
     setupTwoFileFetch();
     const { intents, startViewTransition } = setupViewTransition();
     const user = userEvent.setup();
-    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 
@@ -429,7 +429,7 @@ describe('HomePage', () => {
       value: startViewTransition,
     });
     const user = userEvent.setup();
-    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 
@@ -449,7 +449,7 @@ describe('HomePage', () => {
   it('maps arrow keys to review navigation actions', async () => {
     const fetchMock = setupTwoFileFetch();
     const user = userEvent.setup();
-    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 
