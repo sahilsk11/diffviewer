@@ -9,27 +9,26 @@ import {
 } from '@pierre/diffs/react';
 import { type QueryKey, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ArrowRight,
   ChevronLeft,
   CircleCheckBig,
   ExternalLink,
   Flag,
+  LoaderCircle,
+  PanelLeftOpen,
   SkipForward,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useOutletContext } from 'react-router';
 
-import { Badge } from '@/components/ui/badge';
+import { type ReviewLayoutContext } from '@/components/layout/RootLayout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { isApiError } from '@/lib/api';
 import { useDiffSettings } from '@/lib/diff-settings';
 import { diffviewerApi } from '@/lib/diffviewer-api';
 import { normalizeGitHubPullRequestUrl, parseGitHubPullRequestUrl } from '@/lib/github-pr';
-import { readStateByPath, useReviewSession } from '@/lib/review-state';
+import { useReviewSession } from '@/lib/review-state';
 import type { FileSide, PullRequestDetails, PullRequestFile, ReviewStatus } from '@/lib/types';
 
 interface FileChange {
@@ -51,6 +50,117 @@ interface CommentMetadata {
 }
 
 type CommentAnnotation = DiffLineAnnotation<CommentMetadata>;
+
+const hunkSeparatorCSS = `
+  [data-separator=line-info] {
+    height: 32px;
+    margin-block: 0;
+    background: var(--diffs-bg);
+  }
+
+  [data-separator=line-info][data-separator-first] {
+    margin-top: 0;
+  }
+
+  [data-separator=line-info][data-separator-last] {
+    margin-bottom: 0;
+  }
+
+  [data-separator=line-info] [data-separator-wrapper] {
+    min-width: 0;
+    padding-inline: 0;
+    background: transparent;
+  }
+
+  [data-separator=line-info][data-expand-index] [data-separator-wrapper] {
+    grid-template-columns: 3.25rem max-content;
+  }
+
+  [data-separator=line-info] [data-expand-button],
+  [data-separator=line-info] [data-separator-content] {
+    background: transparent;
+    border: 0;
+  }
+
+  [data-separator=line-info] [data-expand-button] {
+    min-width: 3.25rem;
+    color: #a1a1aa;
+    border-radius: 0;
+  }
+
+  [data-separator=line-info] [data-expand-button]:hover {
+    color: #d4d4d8;
+    background: transparent;
+  }
+
+  [data-separator=line-info] [data-separator-content] {
+    gap: 8px;
+    color: #a1a1aa;
+    border-radius: 0;
+    font-size: 13px;
+    font-weight: 400;
+    justify-content: flex-start;
+    letter-spacing: 0;
+    min-width: max-content;
+    padding-inline: 0;
+    overflow: visible;
+  }
+
+  [data-separator=line-info] [data-separator-content]:hover {
+    background: transparent;
+    text-decoration: none;
+  }
+
+  [data-separator=line-info] [data-unmodified-lines] {
+    color: #a1a1aa;
+    text-decoration: none;
+    overflow: visible;
+  }
+
+  [data-separator=line-info] [data-separator-content]::after {
+    color: #a1a1aa;
+    content: "\\2022  expand all";
+    flex: 0 0 auto;
+    font-weight: 400;
+  }
+
+  [data-separator=line-info] [data-icon] {
+    width: 13px;
+    height: 13px;
+  }
+`;
+
+function DiffLoadingState({ label }: { label: string }): React.ReactNode {
+  return (
+    <div className="flex h-full min-h-[28rem] flex-col bg-card" role="status" aria-live="polite">
+      <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border px-4">
+        <LoaderCircle className="size-4 animate-spin text-accent" />
+        <span className="text-sm font-medium text-foreground">{label}</span>
+        <Skeleton className="ml-auto h-5 w-20" />
+      </div>
+      <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-border">
+        {[0, 1].map((column) => (
+          <div key={column} className="min-w-0 space-y-2 p-4">
+            <div className="mb-4 flex items-center gap-3">
+              <Skeleton className="h-4 w-24" />
+              <Skeleton className="h-4 w-14" />
+            </div>
+            {Array.from({ length: 16 }, (_, index) => (
+              <div key={index} className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3">
+                <Skeleton className="h-4 w-8" />
+                <Skeleton
+                  className={
+                    index % 5 === 0 ? 'h-4 w-2/3' : index % 3 === 0 ? 'h-4 w-5/6' : 'h-4 w-full'
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function annotationKey(side: AnnotationSide, lineNumber: number): string {
   return `${side}:${lineNumber}`;
@@ -112,86 +222,34 @@ async function readFileChange(
   };
 }
 
-function buildReadStatuses(pullRequest: Parameters<typeof readStateByPath>[0]) {
-  return readStateByPath(pullRequest) as Record<string, ReviewStatus>;
-}
-
 interface InitialPullRequestLoad {
   error: string | null;
-  inputUrl: string;
   normalizedUrl: string | null;
-}
-
-interface PullRequestUrlFormProps {
-  error: string | null;
-  isLoading: boolean;
-  onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
-  setValue: (value: string) => void;
-  value: string;
 }
 
 function readInitialPullRequestLoad(): InitialPullRequestLoad {
   const prParam = new URLSearchParams(window.location.search).get('pr');
-  if (prParam === null) return { error: null, inputUrl: '', normalizedUrl: null };
+  if (prParam === null) return { error: null, normalizedUrl: null };
 
   const normalizedUrl = normalizeGitHubPullRequestUrl(prParam);
   if (parseGitHubPullRequestUrl(normalizedUrl) === null) {
     return {
       error: 'Enter a GitHub pull request URL.',
-      inputUrl: prParam,
       normalizedUrl: null,
     };
   }
 
-  return { error: null, inputUrl: normalizedUrl, normalizedUrl };
-}
-
-function PullRequestUrlForm({
-  error,
-  isLoading,
-  onSubmit,
-  setValue,
-  value,
-}: PullRequestUrlFormProps): React.ReactNode {
-  return (
-    <form className="space-y-3" onSubmit={onSubmit} aria-label="Load pull request">
-      <div className="space-y-2">
-        <Label htmlFor="pull-request-url">GitHub pull request URL</Label>
-        <div className="flex flex-col gap-2 sm:flex-row">
-          <Input
-            id="pull-request-url"
-            value={value}
-            onChange={(event) => setValue(event.target.value)}
-            placeholder="https://github.com/OWNER/REPO/pull/123"
-            aria-label="GitHub pull request URL"
-            aria-invalid={error !== null}
-            className="h-12"
-          />
-          <Button type="submit" size="lg" className="shrink-0" disabled={isLoading}>
-            Go
-            <ArrowRight className="size-4" />
-          </Button>
-        </div>
-      </div>
-      {error !== null ? (
-        <p className="text-sm text-danger" role="alert">
-          {error}
-        </p>
-      ) : null}
-    </form>
-  );
+  return { error: null, normalizedUrl };
 }
 
 export function HomePage(): React.ReactNode {
+  const { isSidebarOpen, showSidebar } = useOutletContext<ReviewLayoutContext>();
   const { diffIndicators, layout, lineDiffType, showLineNumbers, wrapLines } = useDiffSettings();
   const { pullRequest, selectedPath, setPullRequest, setSelectedPath } = useReviewSession();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const [initialPullRequestLoad] = useState(readInitialPullRequestLoad);
-  const [pullRequestUrl, setPullRequestUrl] = useState(initialPullRequestLoad.inputUrl);
   const [selectedLines, setSelectedLines] = useState<SelectedLineRange | null>(null);
   const [commentsByFile, setCommentsByFile] = useState<Record<string, CommentAnnotation[]>>({});
-  const [reviewStatuses, setReviewStatuses] = useState<Record<string, ReviewStatus>>({});
   const [formError, setFormError] = useState<string | null>(initialPullRequestLoad.error);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -206,7 +264,6 @@ export function HomePage(): React.ReactNode {
     mutationFn: diffviewerApi.loadPullRequest,
     onSuccess: (loadedPullRequest) => {
       setPullRequest(loadedPullRequest);
-      setReviewStatuses(buildReadStatuses(loadedPullRequest));
       setSelectedPath(loadedPullRequest.files[0]?.path ?? null);
       setSelectedLines(null);
       setCommentsByFile({});
@@ -281,7 +338,6 @@ export function HomePage(): React.ReactNode {
       if (currentFile === null) return;
       try {
         await updateState.mutateAsync({ path: currentFile.path, state: status });
-        setReviewStatuses((current) => ({ ...current, [currentFile.path]: status }));
         setActionError(null);
         goToNext();
       } catch (error) {
@@ -325,6 +381,8 @@ export function HomePage(): React.ReactNode {
       themeType: 'dark' as const,
       diffStyle: layout,
       diffIndicators,
+      hunkSeparators: 'line-info' as const,
+      unsafeCSS: hunkSeparatorCSS,
       lineDiffType,
       overflow: wrapLines ? ('wrap' as const) : ('scroll' as const),
       disableLineNumbers: !showLineNumbers,
@@ -450,11 +508,27 @@ export function HomePage(): React.ReactNode {
     }));
   }
 
+  function handleCommentKeyDown(
+    event: React.KeyboardEvent<HTMLTextAreaElement>,
+    annotation: CommentAnnotation,
+  ): void {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      removeComment(annotation.metadata.id);
+      return;
+    }
+
+    if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      void saveComment(annotation);
+    }
+  }
+
   function renderAnnotation(annotation: CommentAnnotation): React.ReactNode {
     const { metadata } = annotation;
 
     return (
-      <div className="mx-4 my-2 rounded-md border border-border bg-elevated p-3 shadow-lg shadow-black/20">
+      <div className="mx-4 my-2 rounded-md border border-border bg-elevated p-3 font-sans shadow-lg shadow-black/20">
         <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
           <span className="font-medium text-foreground">{metadata.author}</span>
           <span>
@@ -481,10 +555,11 @@ export function HomePage(): React.ReactNode {
         ) : (
           <div className="space-y-3">
             <Textarea
-              className="min-h-20"
+              className="min-h-20 font-sans leading-5"
               placeholder="Add a line comment..."
               value={metadata.draft}
               onChange={(event) => updateDraft(metadata.id, event.target.value)}
+              onKeyDown={(event) => handleCommentKeyDown(event, annotation)}
             />
             {metadata.error !== null ? (
               <p className="text-xs text-danger" role="alert">
@@ -509,170 +584,132 @@ export function HomePage(): React.ReactNode {
     );
   }
 
-  function handleLoad(event: React.FormEvent<HTMLFormElement>): void {
-    event.preventDefault();
-    const normalizedUrl = normalizeGitHubPullRequestUrl(pullRequestUrl);
-    const parsed = parseGitHubPullRequestUrl(normalizedUrl);
-    if (parsed === null) {
-      setFormError('Enter a GitHub pull request URL.');
-      return;
-    }
-    setPullRequestUrl(normalizedUrl);
-    void navigate(`/?pr=${encodeURIComponent(normalizedUrl)}`);
-    loadPullRequest.mutate(normalizedUrl);
-  }
-
-  if (
-    pullRequest === null &&
-    initialPullRequestLoad.normalizedUrl === null &&
-    !loadPullRequest.isPending
-  ) {
-    return (
-      <section className="flex min-h-screen items-center justify-center px-4 py-10 sm:px-6">
-        <div className="w-full max-w-xl space-y-6">
-          <h1 className="text-center text-4xl font-semibold tracking-tight text-foreground sm:text-5xl">
-            Diffviewer
-          </h1>
-          <Card className="shadow-2xl shadow-black/30">
-            <CardHeader className="items-center text-center">
-              <CardTitle>Open a pull request</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <PullRequestUrlForm
-                error={formError}
-                isLoading={loadPullRequest.isPending}
-                onSubmit={handleLoad}
-                setValue={setPullRequestUrl}
-                value={pullRequestUrl}
-              />
-            </CardContent>
-          </Card>
-        </div>
-      </section>
-    );
-  }
-
-  const status =
-    currentFile === null ? 'unreviewed' : (reviewStatuses[currentFile.path] ?? 'unreviewed');
-
   return (
-    <section className="flex min-h-[calc(100vh-3.5rem)] w-full flex-col gap-4 px-4 py-5 sm:px-6">
-      <PullRequestUrlForm
-        error={null}
-        isLoading={loadPullRequest.isPending}
-        onSubmit={handleLoad}
-        setValue={setPullRequestUrl}
-        value={pullRequestUrl}
-      />
-
-      {formError !== null ? (
-        <p className="text-sm text-danger" role="alert">
-          {formError}
-        </p>
-      ) : null}
-
-      <div className="flex w-full items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span>{files.length === 0 ? '0 / 0' : `${currentIndex + 1} / ${files.length}`}</span>
+    <section className="grid min-h-screen w-full grid-rows-[3.5rem_minmax(0,1fr)] pb-24">
+      <div className="grid h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
-          {pullRequest !== null ? (
-            <a
-              className="truncate text-foreground underline-offset-4 hover:underline"
-              href={pullRequest.htmlUrl}
-              target="_blank"
-              rel="noreferrer"
+          {!isSidebarOpen ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Show sidebar"
+              className="shrink-0"
+              onClick={showSidebar}
             >
-              {pullRequest.title}
-            </a>
+              <PanelLeftOpen className="size-4" />
+            </Button>
           ) : null}
-          <Badge variant={status === 'approved' ? 'success' : 'outline'}>{status}</Badge>
+          {loadPullRequest.isPending && pullRequest === null ? (
+            <div className="min-w-0 space-y-2">
+              <Skeleton className="h-5 w-full max-w-lg" />
+              <Skeleton className="h-3 w-56" />
+            </div>
+          ) : (
+            <h1 className="min-w-0 truncate text-base font-semibold leading-8 text-foreground">
+              {pullRequest?.title ?? 'No pull request loaded'}
+            </h1>
+          )}
+        </div>
+        <span className="flex h-8 shrink-0 items-center rounded-md border border-border bg-elevated px-2.5 text-xs font-medium leading-none text-muted-foreground">
+          {files.length === 0 ? '0 / 0' : `${currentIndex + 1} / ${files.length}`}
+        </span>
+      </div>
+
+      <div className="flex min-h-0 flex-col gap-4 px-4 sm:px-6">
+        {formError !== null ? (
+          <p className="text-sm text-danger" role="alert">
+            {formError}
+          </p>
+        ) : null}
+
+        {actionError !== null ? (
+          <p className="text-sm text-danger" role="alert">
+            {actionError}
+          </p>
+        ) : null}
+
+        <div
+          className="min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
+          aria-label="Pull request diff"
+        >
+          {pullRequest === null ? (
+            loadPullRequest.isPending ? (
+              <DiffLoadingState label="Loading pull request" />
+            ) : (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+                No pull request loaded
+              </div>
+            )
+          ) : contentQuery.isError ? (
+            <div className="flex h-full items-center justify-center px-6 text-sm text-danger">
+              {errorText(contentQuery.error)}
+            </div>
+          ) : contentQuery.isLoading || currentChange === null ? (
+            <DiffLoadingState label="Loading diff" />
+          ) : (
+            <Virtualizer key={currentChange.id} className="h-full" contentClassName="min-w-full">
+              <MultiFileDiff
+                oldFile={currentChange.oldFile}
+                newFile={currentChange.newFile}
+                options={options}
+                lineAnnotations={comments}
+                selectedLines={selectedLines}
+                renderAnnotation={renderAnnotation}
+              />
+            </Virtualizer>
+          )}
         </div>
       </div>
 
-      {actionError !== null ? (
-        <p className="text-sm text-danger" role="alert">
-          {actionError}
-        </p>
-      ) : null}
-
-      <div
-        className="min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
-        aria-label="Pull request diff"
-      >
-        {loadPullRequest.isPending ? (
-          <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-            Loading pull request
-          </div>
-        ) : pullRequest === null ? (
-          <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-            No pull request loaded
-          </div>
-        ) : contentQuery.isError ? (
-          <div className="flex h-full items-center justify-center px-6 text-sm text-danger">
-            {errorText(contentQuery.error)}
-          </div>
-        ) : contentQuery.isLoading || currentChange === null ? (
-          <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-            Loading diff
-          </div>
-        ) : (
-          <Virtualizer className="h-full" contentClassName="min-w-full">
-            <MultiFileDiff
-              oldFile={currentChange.oldFile}
-              newFile={currentChange.newFile}
-              options={options}
-              lineAnnotations={comments}
-              selectedLines={selectedLines}
-              renderAnnotation={renderAnnotation}
-            />
-          </Virtualizer>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center justify-center gap-2">
-        <Button
-          variant="outline"
-          className="h-11 w-32"
-          onClick={goToPrevious}
-          disabled={currentIndex === 0 || files.length === 0}
-        >
-          <ChevronLeft className="size-4 shrink-0" />
-          Prev
-          <kbd className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-            Z
-          </kbd>
-        </Button>
-        <Button
-          variant="outline"
-          className="h-11 w-32 border-danger/30 bg-danger/10 text-danger hover:border-danger/50 hover:bg-danger/15"
-          onClick={() => void markCurrent('flagged')}
-          disabled={currentFile === null || updateState.isPending}
-        >
-          <Flag className="size-4 shrink-0" />
-          Flag
-          <kbd className="rounded bg-danger/15 px-1.5 py-0.5 font-mono text-xs text-danger">X</kbd>
-        </Button>
-        <Button
-          variant="outline"
-          className="h-11 w-32 border-success/30 bg-success/10 text-success hover:border-success/50 hover:bg-success/15"
-          onClick={() => void markCurrent('approved')}
-          disabled={currentFile === null || updateState.isPending}
-        >
-          <CircleCheckBig className="size-4 shrink-0" />
-          Approve
-          <kbd className="rounded bg-success/15 px-1.5 py-0.5 font-mono text-xs text-success">
-            A
-          </kbd>
-        </Button>
-        <Button
-          variant="outline"
-          className="h-11 w-32 border-warn/30 bg-warn/10 text-warn hover:border-warn/50 hover:bg-warn/15"
-          onClick={() => void markCurrent('skipped')}
-          disabled={currentFile === null || updateState.isPending}
-        >
-          <SkipForward className="size-4 shrink-0" />
-          Skip
-          <kbd className="rounded bg-warn/15 px-1.5 py-0.5 font-mono text-xs text-warn">S</kbd>
-        </Button>
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/90 px-4 py-3 shadow-2xl shadow-black/40 backdrop-blur lg:left-[var(--review-sidebar-width)] lg:right-0">
+        <div className="mx-auto grid w-full max-w-[36rem] grid-cols-2 gap-3 sm:grid-cols-4">
+          <Button
+            variant="outline"
+            className="h-8 w-full"
+            onClick={goToPrevious}
+            disabled={currentIndex === 0 || files.length === 0}
+          >
+            <ChevronLeft className="size-4 shrink-0" />
+            Prev
+            <kbd className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+              Z
+            </kbd>
+          </Button>
+          <Button
+            variant="outline"
+            className="h-8 w-full border-danger/30 bg-danger/10 text-danger hover:border-danger/50 hover:bg-danger/15"
+            onClick={() => void markCurrent('flagged')}
+            disabled={currentFile === null || updateState.isPending}
+          >
+            <Flag className="size-4 shrink-0" />
+            Flag
+            <kbd className="rounded bg-danger/15 px-1.5 py-0.5 font-mono text-xs text-danger">
+              X
+            </kbd>
+          </Button>
+          <Button
+            variant="outline"
+            className="h-8 w-full border-success/30 bg-success/10 text-success hover:border-success/50 hover:bg-success/15"
+            onClick={() => void markCurrent('approved')}
+            disabled={currentFile === null || updateState.isPending}
+          >
+            <CircleCheckBig className="size-4 shrink-0" />
+            Approve
+            <kbd className="rounded bg-success/15 px-1.5 py-0.5 font-mono text-xs text-success">
+              A
+            </kbd>
+          </Button>
+          <Button
+            variant="outline"
+            className="h-8 w-full border-warn/30 bg-warn/10 text-warn hover:border-warn/50 hover:bg-warn/15"
+            onClick={() => void markCurrent('skipped')}
+            disabled={currentFile === null || updateState.isPending}
+          >
+            <SkipForward className="size-4 shrink-0" />
+            Skip
+            <kbd className="rounded bg-warn/15 px-1.5 py-0.5 font-mono text-xs text-warn">S</kbd>
+          </Button>
+        </div>
       </div>
     </section>
   );

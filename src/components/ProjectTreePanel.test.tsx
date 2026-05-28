@@ -65,14 +65,9 @@ describe('ProjectTreePanel', () => {
     });
     vi.stubGlobal('fetch', fetchMock);
     const user = userEvent.setup();
+    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
-
-    await user.type(
-      screen.getByLabelText('GitHub pull request URL'),
-      'https://github.com/OWNER/REPO/pull/123',
-    );
-    await user.click(screen.getByRole('button', { name: /Go/ }));
 
     await screen.findByText('PR title');
     expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/tree'))).toBe(false);

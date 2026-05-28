@@ -1,44 +1,58 @@
-import { Outlet, useLocation } from 'react-router';
+import { type CSSProperties } from 'react';
+import { useState } from 'react';
+import { Outlet } from 'react-router';
 
-import { Navbar } from './Navbar';
 import { ProjectTreePanel } from '@/components/ProjectTreePanel';
 import { DiffSettingsProvider } from '@/lib/DiffSettingsProvider';
-import { ReviewSessionProvider, useReviewSession } from '@/lib/review-state';
+import { ReviewSessionProvider } from '@/lib/review-state';
 
-function RootLayoutContent(): React.ReactNode {
-  const location = useLocation();
-  const { pullRequest } = useReviewSession();
-  const hasPullRequestUrl = new URLSearchParams(location.search).has('pr');
-
-  if (pullRequest === null && !hasPullRequestUrl) {
-    return (
-      <main className="min-h-full bg-background text-foreground">
-        <Outlet />
-      </main>
-    );
-  }
-
-  return (
-    <div className="grid min-h-full grid-cols-1 bg-background text-foreground lg:grid-cols-[21rem_minmax(0,1fr)]">
-      <div className="min-h-[22rem] lg:h-screen lg:min-h-0">
-        <ProjectTreePanel />
-      </div>
-      <div className="flex min-w-0 flex-col">
-        <Navbar />
-        <main className="flex-1">
-          <Outlet />
-        </main>
-      </div>
-    </div>
-  );
+export interface ReviewLayoutContext {
+  isSidebarOpen: boolean;
+  showSidebar: () => void;
 }
 
 // Page shell wrapping every route. Top nav + main content area.
 export function RootLayout(): React.ReactNode {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
   return (
     <DiffSettingsProvider>
       <ReviewSessionProvider>
-        <RootLayoutContent />
+        <div className="min-h-full bg-background text-foreground lg:h-screen lg:overflow-hidden">
+          <div
+            className="grid min-h-full grid-cols-1 transition-[grid-template-columns] duration-200 ease-out lg:h-screen lg:grid-cols-[var(--review-grid-columns)]"
+            style={
+              {
+                '--review-grid-columns': isSidebarOpen
+                  ? '21rem minmax(0, 1fr)'
+                  : '0rem minmax(0, 1fr)',
+              } as CSSProperties
+            }
+          >
+            <div
+              className={
+                isSidebarOpen
+                  ? 'min-h-[22rem] overflow-hidden transition-opacity duration-150 ease-out lg:h-screen lg:min-h-0'
+                  : 'hidden min-h-[22rem] overflow-hidden opacity-0 transition-opacity duration-150 ease-out lg:block lg:h-screen lg:min-h-0'
+              }
+              aria-hidden={!isSidebarOpen}
+            >
+              <div className="h-full min-w-[21rem]">
+                <ProjectTreePanel onCollapse={() => setIsSidebarOpen(false)} />
+              </div>
+            </div>
+            <main
+              className="min-w-0 lg:h-screen lg:overflow-y-auto"
+              style={
+                {
+                  '--review-sidebar-width': isSidebarOpen ? '21rem' : '0px',
+                } as CSSProperties
+              }
+            >
+              <Outlet context={{ isSidebarOpen, showSidebar: () => setIsSidebarOpen(true) }} />
+            </main>
+          </div>
+        </div>
       </ReviewSessionProvider>
     </DiffSettingsProvider>
   );
