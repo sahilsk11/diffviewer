@@ -166,6 +166,12 @@ function annotationKey(side: AnnotationSide, lineNumber: number): string {
   return `${side}:${lineNumber}`;
 }
 
+function focusCommentDraft(id: string): void {
+  window.requestAnimationFrame(() => {
+    document.querySelector<HTMLTextAreaElement>(`[data-comment-draft-id="${id}"]`)?.focus();
+  });
+}
+
 function sideToSelectionSide(side: AnnotationSide): SelectionSide {
   return side;
 }
@@ -250,6 +256,7 @@ export function HomePage(): React.ReactNode {
   const [initialPullRequestLoad] = useState(readInitialPullRequestLoad);
   const [selectedLines, setSelectedLines] = useState<SelectedLineRange | null>(null);
   const [commentsByFile, setCommentsByFile] = useState<Record<string, CommentAnnotation[]>>({});
+  const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(initialPullRequestLoad.error);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -319,7 +326,15 @@ export function HomePage(): React.ReactNode {
   }, [currentIndex, files, pullRequest, queryClient]);
 
   const currentChange = contentQuery.data ?? null;
-  const comments = currentFile === null ? [] : (commentsByFile[currentFile.path] ?? []);
+  const comments = useMemo(
+    () => (currentFile === null ? [] : (commentsByFile[currentFile.path] ?? [])),
+    [commentsByFile, currentFile],
+  );
+
+  useEffect(() => {
+    if (activeCommentId === null) return;
+    focusCommentDraft(activeCommentId);
+  }, [activeCommentId, comments]);
 
   const goToPrevious = useCallback((): void => {
     const nextIndex = Math.max(0, currentIndex - 1);
@@ -399,11 +414,13 @@ export function HomePage(): React.ReactNode {
       }) => {
         if (currentFile === null) return;
         const side = sideToSelectionSide(annotationSide);
+        const key = annotationKey(annotationSide, lineNumber);
 
         setSelectedLines({ start: lineNumber, side, end: lineNumber, endSide: side });
+        setActiveCommentId(key);
+        focusCommentDraft(key);
         setCommentsByFile((currentByFile) => {
           const current = currentByFile[currentFile.path] ?? [];
-          const key = annotationKey(annotationSide, lineNumber);
           const existing = current.find(
             (comment) => annotationKey(comment.side, comment.lineNumber) === key,
           );
@@ -556,6 +573,7 @@ export function HomePage(): React.ReactNode {
           <div className="space-y-3">
             <Textarea
               className="min-h-20 font-sans leading-5"
+              data-comment-draft-id={metadata.id}
               placeholder="Add a line comment..."
               value={metadata.draft}
               onChange={(event) => updateDraft(metadata.id, event.target.value)}
