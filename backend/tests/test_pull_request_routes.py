@@ -250,7 +250,7 @@ def test_comment_route_rejects_stale_head_sha(tmp_path: Path) -> None:
 
 
 @respx.mock
-def test_files_route_rejects_stale_head_sha(tmp_path: Path) -> None:
+def test_files_route_rejects_stale_revision(tmp_path: Path) -> None:
     respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123").mock(
         return_value=httpx.Response(
             200,
@@ -276,17 +276,84 @@ def test_files_route_rejects_stale_head_sha(tmp_path: Path) -> None:
     with TestClient(app) as client:
         response = client.get(
             "/api/repos/OWNER/REPO/pulls/123/files",
-            params={"headSha": "old_head_sha"},
+            params={"baseSha": "old_base_sha", "headSha": "old_head_sha"},
         )
 
     assert response.status_code == 409
     assert response.json()["detail"] == {
         "error": "Pull request changed. Refresh before viewing files.",
         "code": "stale_pull_request",
+        "currentBaseSha": "base_sha",
         "currentHeadSha": "new_head_sha",
+        "expectedBaseSha": "old_base_sha",
         "expectedHeadSha": "old_head_sha",
     }
     assert not files_route.called
+
+
+@respx.mock
+def test_files_route_force_refreshes_files_after_revision_match(tmp_path: Path) -> None:
+    respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "title": "PR title",
+                "html_url": "https://github.com/OWNER/REPO/pull/123",
+                "base": {"sha": "base_sha"},
+                "head": {"sha": "head_sha", "ref": "branch-name"},
+                "user": {"login": "login"},
+            },
+        ),
+    )
+    files_route = respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123/files").mock(
+        side_effect=[
+            httpx.Response(
+                200,
+                json=[
+                    {
+                        "filename": "src/old.ts",
+                        "status": "modified",
+                        "additions": 1,
+                        "deletions": 1,
+                        "changes": 2,
+                        "patch": "@@ old",
+                    },
+                ],
+            ),
+            httpx.Response(
+                200,
+                json=[
+                    {
+                        "filename": "src/current.ts",
+                        "status": "modified",
+                        "additions": 2,
+                        "deletions": 1,
+                        "changes": 3,
+                        "patch": "@@ current",
+                    },
+                ],
+            ),
+        ],
+    )
+    app = create_app(
+        Settings(
+            github_api_base_url="https://api.github.test",
+            diffviewer_db_path=tmp_path / "test.sqlite3",
+        ),
+    )
+
+    with TestClient(app) as client:
+        cached_response = client.get("/api/repos/OWNER/REPO/pulls/123/files")
+        guarded_response = client.get(
+            "/api/repos/OWNER/REPO/pulls/123/files",
+            params={"baseSha": "base_sha", "headSha": "head_sha"},
+        )
+
+    assert cached_response.status_code == 200
+    assert cached_response.json()["files"][0]["path"] == "src/old.ts"
+    assert guarded_response.status_code == 200
+    assert guarded_response.json()["files"][0]["path"] == "src/current.ts"
+    assert len(files_route.calls) == 2
 
 
 @respx.mock

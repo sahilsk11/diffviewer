@@ -21,10 +21,15 @@ export const diffviewerApi = {
   loadPullRequest: (url: string) =>
     apiClient.post<PullRequestDetails>('/api/pull-requests/load', { url }),
 
-  getPullRequestFiles: (ref: PullRequestRef, headSha?: string) =>
+  getPullRequestFiles: (
+    ref: PullRequestRef,
+    revision?: Pick<PullRequestDetails, 'baseSha' | 'headSha'>,
+  ) =>
     apiClient.get<PullRequestFilesResponse>(
       `${pullRequestPath(ref)}/files${
-        headSha === undefined ? '' : `?headSha=${encodeQuery(headSha)}`
+        revision === undefined
+          ? ''
+          : `?baseSha=${encodeQuery(revision.baseSha)}&headSha=${encodeQuery(revision.headSha)}`
       }`,
     ),
 

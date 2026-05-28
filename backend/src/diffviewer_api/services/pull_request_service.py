@@ -75,8 +75,15 @@ class PullRequestService:
             read_state=read_state,
         )
 
-    async def files(self, owner: str, repo: str, pull_number: int) -> list[PullRequestFile]:
-        file_payloads = await self._files(owner, repo, pull_number)
+    async def files(
+        self,
+        owner: str,
+        repo: str,
+        pull_number: int,
+        *,
+        force_refresh: bool = False,
+    ) -> list[PullRequestFile]:
+        file_payloads = await self._files(owner, repo, pull_number, force_refresh)
         return [map_pull_request_file(file_payload) for file_payload in file_payloads]
 
     async def revision(

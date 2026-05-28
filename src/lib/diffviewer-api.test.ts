@@ -84,6 +84,21 @@ describe('diffviewerApi', () => {
     expect(String(init.body)).not.toContain('position');
   });
 
+  it('sends viewed base and head SHAs when loading guarded file lists', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockJsonResponse({ files: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await diffviewerApi.getPullRequestFiles(
+      { owner: 'OWNER', repo: 'REPO', pullNumber: 123 },
+      { baseSha: 'base_sha', headSha: 'head_sha' },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/repos/OWNER/REPO/pulls/123/files?baseSha=base_sha&headSha=head_sha',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   it('explains empty gateway errors from an unavailable backend', async () => {
     vi.stubGlobal(
       'fetch',

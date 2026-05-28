@@ -61,21 +61,34 @@ async def get_pull_request_files(
     repo: str,
     pull_number: int,
     service: Annotated[PullRequestService, Depends(get_pull_request_service)],
+    base_sha: Annotated[str | None, Query(alias="baseSha")] = None,
     head_sha: Annotated[str | None, Query(alias="headSha")] = None,
 ) -> PullRequestFilesResponse:
-    if head_sha is not None:
-        pr = await service.revision(owner, repo, pull_number, force_refresh=True)
-        if pr.head_sha != head_sha:
-            raise HTTPException(
-                status_code=409,
-                detail={
-                    "error": "Pull request changed. Refresh before viewing files.",
-                    "code": "stale_pull_request",
-                    "currentHeadSha": pr.head_sha,
-                    "expectedHeadSha": head_sha,
-                },
-            )
-    return PullRequestFilesResponse(files=await service.files(owner, repo, pull_number))
+    if (base_sha is None) != (head_sha is None):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "baseSha and headSha must be provided together.",
+                "code": "validation_error",
+            },
+        )
+
+    if base_sha is not None and head_sha is not None:
+        await load_matching_pull_request(
+            owner=owner,
+            repo=repo,
+            pull_number=pull_number,
+            expected_base_sha=base_sha,
+            expected_head_sha=head_sha,
+            service=service,
+        )
+        return PullRequestFilesResponse(
+            files=await service.files(owner, repo, pull_number, force_refresh=True),
+        )
+
+    return PullRequestFilesResponse(
+        files=await service.files(owner, repo, pull_number),
+    )
 
 
 @router.get("/tree", response_model=RepositoryTree, response_model_by_alias=True)
