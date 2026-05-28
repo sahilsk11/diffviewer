@@ -587,7 +587,7 @@ export function HomePage(): React.ReactNode {
   }
 
   return (
-    <section className="grid min-h-screen w-full grid-rows-[3.5rem_minmax(0,1fr)] pb-28">
+    <section className="grid min-h-screen w-full grid-rows-[3.5rem_minmax(0,1fr)] pb-24">
       <div className="grid h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 sm:px-6">
         <div className="flex min-w-0 items-center gap-2">
           {!isSidebarOpen ? (
@@ -663,11 +663,11 @@ export function HomePage(): React.ReactNode {
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/90 px-4 py-4 shadow-2xl shadow-black/40 backdrop-blur lg:left-[var(--review-sidebar-width)] lg:right-0">
+      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/90 px-4 py-3 shadow-2xl shadow-black/40 backdrop-blur lg:left-[var(--review-sidebar-width)] lg:right-0">
         <div className="mx-auto grid w-full max-w-[36rem] grid-cols-2 gap-3 sm:grid-cols-4">
           <Button
             variant="outline"
-            className="h-10 w-full"
+            className="h-8 w-full"
             onClick={goToPrevious}
             disabled={currentIndex === 0 || files.length === 0}
           >
@@ -679,7 +679,7 @@ export function HomePage(): React.ReactNode {
           </Button>
           <Button
             variant="outline"
-            className="h-10 w-full border-danger/30 bg-danger/10 text-danger hover:border-danger/50 hover:bg-danger/15"
+            className="h-8 w-full border-danger/30 bg-danger/10 text-danger hover:border-danger/50 hover:bg-danger/15"
             onClick={() => void markCurrent('flagged')}
             disabled={currentFile === null || updateState.isPending}
           >
@@ -691,7 +691,7 @@ export function HomePage(): React.ReactNode {
           </Button>
           <Button
             variant="outline"
-            className="h-10 w-full border-success/30 bg-success/10 text-success hover:border-success/50 hover:bg-success/15"
+            className="h-8 w-full border-success/30 bg-success/10 text-success hover:border-success/50 hover:bg-success/15"
             onClick={() => void markCurrent('approved')}
             disabled={currentFile === null || updateState.isPending}
           >
@@ -703,7 +703,7 @@ export function HomePage(): React.ReactNode {
           </Button>
           <Button
             variant="outline"
-            className="h-10 w-full border-warn/30 bg-warn/10 text-warn hover:border-warn/50 hover:bg-warn/15"
+            className="h-8 w-full border-warn/30 bg-warn/10 text-warn hover:border-warn/50 hover:bg-warn/15"
             onClick={() => void markCurrent('skipped')}
             disabled={currentFile === null || updateState.isPending}
           >
