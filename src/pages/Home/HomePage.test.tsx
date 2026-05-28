@@ -7,14 +7,28 @@ import { renderWithProviders } from '@/test/render';
 
 vi.mock('@pierre/diffs/react', async () => {
   const React = await import('react');
+  type MockAnnotationSide = 'additions' | 'deletions';
+  interface MockAnnotation {
+    lineNumber: number;
+    metadata: unknown;
+    side: MockAnnotationSide;
+  }
 
   return {
     MultiFileDiff: ({
+      lineAnnotations,
       newFile,
       oldFile,
+      options,
+      renderAnnotation,
     }: {
+      lineAnnotations?: MockAnnotation[];
       newFile: { contents: string; name: string };
       oldFile: { contents: string; name: string };
+      options?: {
+        onLineClick?: (line: { annotationSide: MockAnnotationSide; lineNumber: number }) => void;
+      };
+      renderAnnotation?: (annotation: MockAnnotation) => React.ReactNode;
     }) => {
       const [renderedNewFile] = React.useState(newFile);
       const [renderedOldFile] = React.useState(oldFile);
@@ -27,6 +41,17 @@ vi.mock('@pierre/diffs/react', async () => {
           <div>
             {renderedNewFile.name}: {renderedNewFile.contents}
           </div>
+          <button
+            type="button"
+            onClick={() => options?.onLineClick?.({ annotationSide: 'additions', lineNumber: 1 })}
+          >
+            Mock additions line 1
+          </button>
+          {(lineAnnotations ?? []).map((annotation) => (
+            <div key={`${annotation.side}:${annotation.lineNumber}`}>
+              {renderAnnotation?.(annotation)}
+            </div>
+          ))}
         </div>
       );
     },
@@ -478,6 +503,22 @@ describe('HomePage', () => {
           method: 'PUT',
         }),
       );
+    });
+  });
+
+  it('focuses the draft comment box after clicking a diff line', async () => {
+    setupFetch();
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+
+    renderWithProviders(<App />);
+
+    await screen.findByText('PR title');
+    await user.click(await screen.findByRole('button', { name: 'Mock additions line 1' }));
+
+    const commentBox = await screen.findByPlaceholderText('Add a line comment...');
+    await waitFor(() => {
+      expect(commentBox).toHaveFocus();
     });
   });
 });
