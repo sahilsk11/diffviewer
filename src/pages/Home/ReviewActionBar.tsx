@@ -1,10 +1,12 @@
 import { ChevronLeft, CircleCheckBig, Flag, SkipForward } from 'lucide-react';
+import { type CSSProperties } from 'react';
 
 import { Button } from '@/components/ui/button';
 
 interface ReviewActionBarProps {
   canGoPrevious: boolean;
   canReviewCurrent: boolean;
+  isInsightsOpen: boolean;
   isUpdating: boolean;
   onApprove: () => void;
   onFlag: () => void;
@@ -15,6 +17,7 @@ interface ReviewActionBarProps {
 export function ReviewActionBar({
   canGoPrevious,
   canReviewCurrent,
+  isInsightsOpen,
   isUpdating,
   onApprove,
   onFlag,
@@ -22,7 +25,14 @@ export function ReviewActionBar({
   onSkip,
 }: ReviewActionBarProps): React.ReactNode {
   return (
-    <div className="diff-actions-transition-surface fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background px-4 py-3 shadow-2xl shadow-black/40 lg:left-[var(--review-sidebar-width)] lg:right-0">
+    <div
+      className="diff-actions-transition-surface fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background px-4 py-3 shadow-2xl shadow-black/40 lg:left-[var(--review-sidebar-width)] lg:right-[var(--review-actions-right)]"
+      style={
+        {
+          '--review-actions-right': isInsightsOpen ? '21rem' : '0px',
+        } as CSSProperties
+      }
+    >
       <div className="mx-auto grid w-full max-w-[36rem] grid-cols-2 gap-3 sm:grid-cols-4">
         <Button
           variant="outline"

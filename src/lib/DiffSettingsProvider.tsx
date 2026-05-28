@@ -11,7 +11,7 @@ export function DiffSettingsProvider({ children }: { children: React.ReactNode }
   const [layout, setLayout] = useState<DiffLayout>('split');
   const [diffIndicators, setDiffIndicators] = useState<DiffIndicators>('none');
   const [lineDiffType, setLineDiffType] = useState<LineDiffTypes>('word');
-  const [wrapLines, setWrapLines] = useState(false);
+  const [wrapLines, setWrapLines] = useState(true);
   const [showLineNumbers, setShowLineNumbers] = useState(true);
 
   const value: DiffSettingsContextValue = useMemo(

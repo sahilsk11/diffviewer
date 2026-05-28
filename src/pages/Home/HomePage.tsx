@@ -1,31 +1,36 @@
 import {
   type AnnotationSide,
-  type DiffLineAnnotation,
   type FileContents as DiffFileContents,
   type SelectedLineRange,
   type SelectionSide,
-  MultiFileDiff,
-  Virtualizer,
 } from '@pierre/diffs/react';
 import { type QueryKey, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ExternalLink, PanelLeftOpen } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { useOutletContext, useSearchParams } from 'react-router';
 
 import { type ReviewLayoutContext } from '@/components/layout/RootLayout';
-import { Button } from '@/components/ui/button';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Textarea } from '@/components/ui/textarea';
 import { isApiError } from '@/lib/api';
 import { useDiffSettings } from '@/lib/diff-settings';
 import { diffviewerApi } from '@/lib/diffviewer-api';
 import { normalizeGitHubPullRequestUrl, parseGitHubPullRequestUrl } from '@/lib/github-pr';
 import { useReviewSession } from '@/lib/review-state';
 import type { FileSide, PullRequestDetails, PullRequestFile, ReviewStatus } from '@/lib/types';
-import { DiffLoadingState } from '@/pages/Home/DiffLoadingState';
+import {
+  CommentAnnotationCard,
+  type CommentAnnotation,
+  type CommentMetadata,
+} from '@/pages/Home/CommentAnnotationCard';
+import { FileInsightsPanel, type InsightsPanelTab } from '@/pages/Home/FileInsightsPanel';
+import { hunkSeparatorCSS } from '@/pages/Home/hunk-separator-css';
+import {
+  getCodeExplanation,
+  getFileInsight,
+  type CodeExplanation,
+} from '@/pages/Home/insights-data';
 import { ReviewActionBar } from '@/pages/Home/ReviewActionBar';
-import { ReviewCompleteState } from '@/pages/Home/ReviewCompleteState';
+import { ReviewDiffPanel } from '@/pages/Home/ReviewDiffPanel';
+import { ReviewHeader } from '@/pages/Home/ReviewHeader';
 
 interface FileChange {
   id: string;
@@ -34,98 +39,22 @@ interface FileChange {
   oldFile: DiffFileContents;
 }
 
-interface CommentMetadata {
-  id: string;
-  author: string;
-  body: string;
-  draft: string;
-  error: string | null;
-  postedUrl: string | null;
-  state: 'draft' | 'posted';
-  submitting: boolean;
-}
-
-type CommentAnnotation = DiffLineAnnotation<CommentMetadata>;
 type DiffTransitionIntent = 'approve' | 'flag' | 'previous' | 'skip';
 
-const hunkSeparatorCSS = `
-  [data-separator=line-info] {
-    height: 32px;
-    margin-block: 0;
-    background: var(--diffs-bg);
-  }
+interface LineActionTarget {
+  filePath: string | null;
+  left: number | null;
+  lineNumber: number;
+  rangeSelection: boolean;
+  side: AnnotationSide;
+  top: number | null;
+  range: SelectedLineRange;
+}
 
-  [data-separator=line-info][data-separator-first] {
-    margin-top: 0;
-  }
-
-  [data-separator=line-info][data-separator-last] {
-    margin-bottom: 0;
-  }
-
-  [data-separator=line-info] [data-separator-wrapper] {
-    min-width: 0;
-    padding-inline: 0;
-    background: transparent;
-  }
-
-  [data-separator=line-info][data-expand-index] [data-separator-wrapper] {
-    grid-template-columns: 3.25rem max-content;
-  }
-
-  [data-separator=line-info] [data-expand-button],
-  [data-separator=line-info] [data-separator-content] {
-    background: transparent;
-    border: 0;
-  }
-
-  [data-separator=line-info] [data-expand-button] {
-    min-width: 3.25rem;
-    color: #a1a1aa;
-    border-radius: 0;
-  }
-
-  [data-separator=line-info] [data-expand-button]:hover {
-    color: #d4d4d8;
-    background: transparent;
-  }
-
-  [data-separator=line-info] [data-separator-content] {
-    gap: 8px;
-    color: #a1a1aa;
-    border-radius: 0;
-    font-size: 13px;
-    font-weight: 400;
-    justify-content: flex-start;
-    letter-spacing: 0;
-    min-width: max-content;
-    padding-inline: 0;
-    overflow: visible;
-  }
-
-  [data-separator=line-info] [data-separator-content]:hover {
-    background: transparent;
-    text-decoration: none;
-  }
-
-  [data-separator=line-info] [data-unmodified-lines] {
-    color: #a1a1aa;
-    text-decoration: none;
-    overflow: visible;
-  }
-
-  [data-separator=line-info] [data-separator-content]::after {
-    color: #a1a1aa;
-    content: "\\2022  expand all";
-    flex: 0 0 auto;
-    font-weight: 400;
-  }
-
-  [data-separator=line-info] [data-icon] {
-    width: 13px;
-    height: 13px;
-  }
-`;
+interface FileScopedLineSelection {
+  filePath: string | null;
+  range: SelectedLineRange;
+}
 
 function annotationKey(side: AnnotationSide, lineNumber: number): string {
   return `${side}:${lineNumber}`;
@@ -180,6 +109,14 @@ function runDiffTransition(intent: DiffTransitionIntent, update: () => void): vo
     }
     update();
   }
+}
+
+function lineTargetLabel(target: LineActionTarget | null): string {
+  if (target === null) return '';
+  if (target.range.start === target.range.end) return `Line ${target.lineNumber}`;
+  const start = Math.min(target.range.start, target.range.end);
+  const end = Math.max(target.range.start, target.range.end);
+  return `Lines ${start}-${end}`;
 }
 
 async function readContents(
@@ -251,7 +188,7 @@ function readInitialPullRequestLoad(): InitialPullRequestLoad {
 }
 
 export function HomePage(): React.ReactNode {
-  const { isSidebarOpen, showSidebar } = useOutletContext<ReviewLayoutContext>();
+  const { isSidebarOpen, showSidebar, toggleSidebar } = useOutletContext<ReviewLayoutContext>();
   const [, setSearchParams] = useSearchParams();
   const { diffIndicators, layout, lineDiffType, showLineNumbers, wrapLines } = useDiffSettings();
   const {
@@ -263,10 +200,18 @@ export function HomePage(): React.ReactNode {
     setSelectedPath,
   } = useReviewSession();
   const queryClient = useQueryClient();
+  const diffPanelRef = useRef<HTMLDivElement | null>(null);
   const [initialPullRequestLoad] = useState(readInitialPullRequestLoad);
-  const [selectedLines, setSelectedLines] = useState<SelectedLineRange | null>(null);
+  const [selectedLines, setSelectedLines] = useState<FileScopedLineSelection | null>(null);
   const [commentsByFile, setCommentsByFile] = useState<Record<string, CommentAnnotation[]>>({});
   const [activeCommentId, setActiveCommentId] = useState<string | null>(null);
+  const [lineActionTarget, setLineActionTarget] = useState<LineActionTarget | null>(null);
+  const [insightsTab, setInsightsTab] = useState<InsightsPanelTab>('summary');
+  const [codeExplanation, setCodeExplanation] = useState<{
+    explanation: CodeExplanation;
+    filePath: string | null;
+  } | null>(null);
+  const [isInsightsOpen, setIsInsightsOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(initialPullRequestLoad.error);
   const [actionError, setActionError] = useState<string | null>(null);
 
@@ -364,10 +309,18 @@ export function HomePage(): React.ReactNode {
   }, [currentIndex, files, pullRequest, queryClient]);
 
   const currentChange = contentQuery.data ?? null;
+  const currentInsight = useMemo(() => getFileInsight(currentFile), [currentFile]);
+  const currentFilePath = currentFile?.path ?? null;
   const comments = useMemo(
     () => (currentFile === null ? [] : (commentsByFile[currentFile.path] ?? [])),
     [commentsByFile, currentFile],
   );
+  const visibleCodeExplanation =
+    codeExplanation?.filePath === currentFilePath ? codeExplanation.explanation : null;
+  const visibleLineActionTarget =
+    lineActionTarget?.filePath === currentFilePath ? lineActionTarget : null;
+  const visibleSelectedLines =
+    selectedLines?.filePath === currentFilePath ? selectedLines.range : null;
 
   useEffect(() => {
     if (activeCommentId === null) return;
@@ -382,6 +335,7 @@ export function HomePage(): React.ReactNode {
         setReviewComplete(false);
         setSelectedPath(nextPath);
         setSelectedLines(null);
+        setLineActionTarget(null);
       });
     },
     [selectedPath, setReviewComplete, setSelectedPath],
@@ -399,6 +353,7 @@ export function HomePage(): React.ReactNode {
           setReviewComplete(true);
           setSelectedPath(null);
           setSelectedLines(null);
+          setLineActionTarget(null);
         });
         return;
       }
@@ -423,6 +378,77 @@ export function HomePage(): React.ReactNode {
     [currentFile, goToNext, updateState],
   );
 
+  const addDraftComment = useCallback(
+    (target: LineActionTarget): void => {
+      if (currentFile === null) return;
+      const key = annotationKey(target.side, target.lineNumber);
+      setSelectedLines(
+        target.rangeSelection ? { filePath: currentFile.path, range: target.range } : null,
+      );
+      setActiveCommentId(key);
+      setLineActionTarget(null);
+      setCommentsByFile((currentByFile) => {
+        const current = currentByFile[currentFile.path] ?? [];
+        const existing = current.find(
+          (comment) => annotationKey(comment.side, comment.lineNumber) === key,
+        );
+
+        if (existing !== undefined) return currentByFile;
+
+        return {
+          ...currentByFile,
+          [currentFile.path]: [
+            ...current,
+            {
+              side: target.side,
+              lineNumber: target.lineNumber,
+              metadata: {
+                id: key,
+                author: 'You',
+                body: '',
+                draft: '',
+                error: null,
+                postedUrl: null,
+                range: target.rangeSelection ? target.range : null,
+                state: 'draft',
+                submitting: false,
+              },
+            },
+          ],
+        };
+      });
+    },
+    [currentFile],
+  );
+
+  const explainTarget = useCallback(
+    (target: LineActionTarget): void => {
+      setSelectedLines(
+        target.rangeSelection ? { filePath: target.filePath, range: target.range } : null,
+      );
+      setCodeExplanation({
+        explanation: getCodeExplanation(currentFile, lineTargetLabel(target)),
+        filePath: currentFilePath,
+      });
+      setInsightsTab('explainer');
+      setIsInsightsOpen(true);
+      setLineActionTarget(null);
+    },
+    [currentFile, currentFilePath],
+  );
+
+  const readLineActionPosition = useCallback((lineElement: HTMLElement | null) => {
+    const panel = diffPanelRef.current;
+    if (panel === null || lineElement === null) return { left: null, top: null };
+
+    const panelRect = panel.getBoundingClientRect();
+    const lineRect = lineElement.getBoundingClientRect();
+    return {
+      left: Math.max(8, lineRect.left - panelRect.left + 12),
+      top: Math.max(8, lineRect.top - panelRect.top - 44),
+    };
+  }, []);
+
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
@@ -443,13 +469,19 @@ export function HomePage(): React.ReactNode {
       } else if (key === 's' || event.key === 'ArrowRight') {
         event.preventDefault();
         void markCurrent('skipped');
+      } else if (key === 'b') {
+        event.preventDefault();
+        toggleSidebar();
+      } else if (key === 'i' && pullRequest !== null) {
+        event.preventDefault();
+        setIsInsightsOpen((isOpen) => !isOpen);
       }
     }
 
     window.addEventListener('keydown', handleKeyDown);
 
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goToPrevious, markCurrent]);
+  }, [goToPrevious, markCurrent, pullRequest, toggleSidebar]);
 
   const options = useMemo(
     () => ({
@@ -468,51 +500,79 @@ export function HomePage(): React.ReactNode {
       lineHoverHighlight: 'both' as const,
       onLineClick: ({
         annotationSide,
+        lineElement,
         lineNumber,
       }: {
         annotationSide: AnnotationSide;
+        lineElement: HTMLElement;
         lineNumber: number;
       }) => {
-        if (currentFile === null) return;
         const side = sideToSelectionSide(annotationSide);
-        const key = annotationKey(annotationSide, lineNumber);
+        const range = { start: lineNumber, side, end: lineNumber, endSide: side };
+        const actionPosition = readLineActionPosition(lineElement);
 
-        setSelectedLines({ start: lineNumber, side, end: lineNumber, endSide: side });
-        setActiveCommentId(key);
-        focusCommentDraft(key);
-        setCommentsByFile((currentByFile) => {
-          const current = currentByFile[currentFile.path] ?? [];
-          const existing = current.find(
-            (comment) => annotationKey(comment.side, comment.lineNumber) === key,
-          );
-
-          if (existing !== undefined) return currentByFile;
+        setSelectedLines(null);
+        setLineActionTarget((currentTarget) => {
+          if (
+            currentTarget !== null &&
+            !currentTarget.rangeSelection &&
+            currentTarget.side === annotationSide &&
+            currentTarget.lineNumber === lineNumber
+          ) {
+            return null;
+          }
 
           return {
-            ...currentByFile,
-            [currentFile.path]: [
-              ...current,
-              {
-                side: annotationSide,
-                lineNumber,
-                metadata: {
-                  id: key,
-                  author: 'You',
-                  body: '',
-                  draft: '',
-                  error: null,
-                  postedUrl: null,
-                  state: 'draft',
-                  submitting: false,
-                },
-              },
-            ],
+            filePath: currentFilePath,
+            left: actionPosition.left,
+            lineNumber,
+            rangeSelection: false,
+            side: annotationSide,
+            top: actionPosition.top,
+            range,
           };
         });
       },
-      onLineSelected: setSelectedLines,
+      onLineSelected: (range: SelectedLineRange | null) => {
+        setSelectedLines(range === null ? null : { filePath: currentFilePath, range });
+        if (range === null || range.side === undefined) {
+          setLineActionTarget(null);
+          return;
+        }
+
+        const lineNumber = Math.min(range.start, range.end);
+        const nextTarget = {
+          filePath: currentFilePath,
+          left: null,
+          lineNumber,
+          rangeSelection: range.start !== range.end || range.side !== range.endSide,
+          side: range.side as AnnotationSide,
+          top: null,
+          range,
+        };
+
+        setLineActionTarget(nextTarget);
+        window.requestAnimationFrame(() => {
+          const selectedLine =
+            diffPanelRef.current?.querySelector<HTMLElement>('[data-selected-line]');
+          const actionPosition = readLineActionPosition(selectedLine ?? null);
+          setLineActionTarget({
+            ...nextTarget,
+            left: actionPosition.left,
+            top: actionPosition.top,
+          });
+        });
+      },
     }),
-    [currentFile, diffIndicators, layout, lineDiffType, showLineNumbers, wrapLines],
+    [
+      currentFilePath,
+      diffIndicators,
+      layout,
+      lineDiffType,
+      readLineActionPosition,
+      showLineNumbers,
+      wrapLines,
+    ],
   );
 
   function updateDraft(id: string, draft: string): void {
@@ -533,14 +593,10 @@ export function HomePage(): React.ReactNode {
     if (body.length === 0) return;
 
     const side = annotationSideToFileSide(annotation.side);
-    const sameSideSelection =
-      selectedLines?.side === annotation.side && selectedLines.endSide === annotation.side;
-    const startLine = sameSideSelection
-      ? Math.min(selectedLines.start, selectedLines.end)
-      : annotation.lineNumber;
-    const endLine = sameSideSelection
-      ? Math.max(selectedLines.start, selectedLines.end)
-      : annotation.lineNumber;
+    const range = annotation.metadata.range;
+    const sameSideSelection = range?.side === annotation.side && range.endSide === annotation.side;
+    const startLine = sameSideSelection ? Math.min(range.start, range.end) : annotation.lineNumber;
+    const endLine = sameSideSelection ? Math.max(range.start, range.end) : annotation.lineNumber;
 
     patchComment(annotation.metadata.id, { submitting: true, error: null });
 
@@ -604,102 +660,39 @@ export function HomePage(): React.ReactNode {
   }
 
   function renderAnnotation(annotation: CommentAnnotation): React.ReactNode {
-    const { metadata } = annotation;
-
     return (
-      <div className="mx-4 my-2 rounded-md border border-border bg-elevated p-3 font-sans shadow-lg shadow-black/20">
-        <div className="mb-2 flex items-center justify-between gap-3 text-xs text-muted-foreground">
-          <span className="font-medium text-foreground">{metadata.author}</span>
-          <span>
-            {annotation.side}:{annotation.lineNumber}
-          </span>
-        </div>
-        {metadata.state === 'posted' ? (
-          <div className="space-y-3">
-            <p className="text-sm leading-6 text-foreground">{metadata.body}</p>
-            <div className="flex flex-wrap justify-end gap-2">
-              {metadata.postedUrl !== null ? (
-                <Button variant="outline" size="sm" asChild>
-                  <a href={metadata.postedUrl} target="_blank" rel="noreferrer">
-                    <ExternalLink className="size-4" />
-                    Open
-                  </a>
-                </Button>
-              ) : null}
-              <Button variant="outline" size="sm" onClick={() => removeComment(metadata.id)}>
-                Resolve
-              </Button>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <Textarea
-              className="min-h-20 font-sans leading-5"
-              data-comment-draft-id={metadata.id}
-              placeholder="Add a line comment..."
-              value={metadata.draft}
-              onChange={(event) => updateDraft(metadata.id, event.target.value)}
-              onKeyDown={(event) => handleCommentKeyDown(event, annotation)}
-            />
-            {metadata.error !== null ? (
-              <p className="text-xs text-danger" role="alert">
-                {metadata.error}
-              </p>
-            ) : null}
-            <div className="flex justify-end gap-2">
-              <Button variant="ghost" size="sm" onClick={() => removeComment(metadata.id)}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                disabled={metadata.draft.trim().length === 0 || metadata.submitting}
-                onClick={() => void saveComment(annotation)}
-              >
-                Comment
-              </Button>
-            </div>
-          </div>
-        )}
-      </div>
+      <CommentAnnotationCard
+        annotation={annotation}
+        onCancel={removeComment}
+        onDraftChange={updateDraft}
+        onKeyDown={handleCommentKeyDown}
+        onSave={(nextAnnotation) => void saveComment(nextAnnotation)}
+      />
     );
   }
 
   return (
     <section className="grid min-h-screen w-full grid-rows-[3.5rem_minmax(0,1fr)] pb-24">
-      <div className="grid h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 sm:px-6">
-        <div className="flex min-w-0 items-center gap-2">
-          {!isSidebarOpen ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              aria-label="Show sidebar"
-              className="shrink-0"
-              onClick={showSidebar}
-            >
-              <PanelLeftOpen className="size-4" />
-            </Button>
-          ) : null}
-          {loadPullRequest.isPending && pullRequest === null ? (
-            <div className="min-w-0 space-y-2">
-              <Skeleton className="h-5 w-full max-w-lg" />
-              <Skeleton className="h-3 w-56" />
-            </div>
-          ) : (
-            <h1 className="min-w-0 truncate text-base font-semibold leading-8 text-foreground">
-              {pullRequest?.title ?? 'No pull request loaded'}
-            </h1>
-          )}
-        </div>
-        <span className="flex h-8 shrink-0 items-center rounded-md border border-border bg-elevated px-2.5 text-xs font-medium leading-none text-muted-foreground">
-          {files.length === 0
-            ? '0 / 0'
-            : showReviewComplete
-              ? `${files.length} / ${files.length}`
-              : `${currentIndex + 1} / ${files.length}`}
-        </span>
-      </div>
+      <ReviewHeader
+        canShowInsights={pullRequest !== null}
+        currentIndex={currentIndex}
+        fileCount={files.length}
+        isInsightsOpen={isInsightsOpen}
+        isLoading={loadPullRequest.isPending && pullRequest === null}
+        isReviewComplete={showReviewComplete}
+        isSidebarOpen={isSidebarOpen}
+        onShowInsights={() => setIsInsightsOpen(true)}
+        onShowSidebar={showSidebar}
+        title={pullRequest?.title ?? null}
+      />
 
-      <div className="flex min-h-0 flex-col gap-4 px-4 sm:px-6">
+      <div
+        className={
+          isInsightsOpen
+            ? 'flex min-h-0 flex-1 flex-col gap-4 px-4 transition-[padding] duration-200 ease-out sm:px-6 lg:pr-[22.5rem]'
+            : 'flex min-h-0 flex-1 flex-col gap-4 px-4 transition-[padding] duration-200 ease-out sm:px-6'
+        }
+      >
         {formError !== null ? (
           <p className="text-sm text-danger" role="alert">
             {formError}
@@ -712,44 +705,47 @@ export function HomePage(): React.ReactNode {
           </p>
         ) : null}
 
-        <div
-          className="diff-file-transition-surface min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
-          aria-label="Pull request diff"
-        >
-          {pullRequest === null ? (
-            loadPullRequest.isPending ? (
-              <DiffLoadingState label="Loading pull request" />
-            ) : (
-              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-                No pull request loaded
-              </div>
-            )
-          ) : showReviewComplete ? (
-            <ReviewCompleteState fileCount={files.length} />
-          ) : contentQuery.isError ? (
-            <div className="flex h-full items-center justify-center px-6 text-sm text-danger">
-              {errorText(contentQuery.error)}
-            </div>
-          ) : contentQuery.isLoading || currentChange === null ? (
-            <DiffLoadingState label="Loading diff" />
-          ) : (
-            <Virtualizer key={currentChange.id} className="h-full" contentClassName="min-w-full">
-              <MultiFileDiff
-                oldFile={currentChange.oldFile}
-                newFile={currentChange.newFile}
-                options={options}
-                lineAnnotations={comments}
-                selectedLines={selectedLines}
-                renderAnnotation={renderAnnotation}
-              />
-            </Virtualizer>
-          )}
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
+          <ReviewDiffPanel
+            actionLeft={visibleLineActionTarget?.left ?? null}
+            actionTop={visibleLineActionTarget?.top ?? null}
+            comments={comments}
+            contentError={contentQuery.isError ? errorText(contentQuery.error) : null}
+            currentChange={currentChange}
+            fileCount={files.length}
+            hasPullRequest={pullRequest !== null}
+            isContentLoading={contentQuery.isLoading}
+            isPullRequestLoading={loadPullRequest.isPending}
+            onCloseAction={() => setLineActionTarget(null)}
+            onComment={() => {
+              if (lineActionTarget !== null) addDraftComment(lineActionTarget);
+            }}
+            onExplain={() => {
+              if (lineActionTarget !== null) explainTarget(lineActionTarget);
+            }}
+            options={options}
+            panelRef={diffPanelRef}
+            renderAnnotation={renderAnnotation}
+            selectedLines={visibleSelectedLines}
+            showLineAction={visibleLineActionTarget !== null}
+            showReviewComplete={showReviewComplete}
+          />
+          <FileInsightsPanel
+            activeTab={insightsTab}
+            explanation={visibleCodeExplanation}
+            file={currentFile}
+            insight={currentInsight}
+            isOpen={isInsightsOpen}
+            onClose={() => setIsInsightsOpen(false)}
+            onTabChange={setInsightsTab}
+          />
         </div>
       </div>
 
       <ReviewActionBar
         canGoPrevious={(currentIndex !== 0 || showReviewComplete) && files.length > 0}
         canReviewCurrent={currentFile !== null}
+        isInsightsOpen={isInsightsOpen}
         isUpdating={updateState.isPending}
         onApprove={() => void markCurrent('approved')}
         onFlag={() => void markCurrent('flagged')}
