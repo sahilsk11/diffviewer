@@ -110,9 +110,10 @@ Required repository configuration:
 | `SAS_DIFFVIEWER_DEPLOY_TOKEN`   | Secret   | Bearer token for the `diffviewer-deploy` SAS caller. |
 
 The workflow grants `GITHUB_TOKEN` only `contents: read` and
-`deployments: write`. It uses a stable idempotency key of
-`diffviewer:production:<sha>` and a `diffviewer-production` concurrency group so
-mainline deploy attempts do not overlap.
+`deployments: write`. It uses a deployment-scoped idempotency key of
+`diffviewer:production:<sha>:<deployment-id>` and a `diffviewer-production`
+concurrency group so mainline deploy attempts do not overlap while manual
+reruns can create a fresh SAS job for the same commit.
 
 ## Backend
 

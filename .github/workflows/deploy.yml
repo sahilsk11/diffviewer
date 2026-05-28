@@ -104,7 +104,7 @@ jobs:
           set -euo pipefail
 
           api_base="${SAS_DEPLOY_API_URL%/}"
-          idempotency_key="diffviewer:${DEPLOY_ENVIRONMENT}:${DEPLOY_REF}"
+          idempotency_key="diffviewer:${DEPLOY_ENVIRONMENT}:${DEPLOY_REF}:${DEPLOYMENT_ID}"
           request="$(
             jq -n \
               --arg repo "${GITHUB_REPOSITORY}" \
@@ -132,7 +132,7 @@ jobs:
               "${api_base}/deployments/diffviewer"
           )"
 
-          job_id="$(jq -r '.job_id // .id // empty' <<<"${response}")"
+          job_id="$(jq -r '.job_id // .job.id // .id // empty' <<<"${response}")"
           if [[ -z "${job_id}" ]]; then
             echo "SAS deploy response did not include a job_id" >&2
             jq . <<<"${response}" >&2
@@ -141,11 +141,13 @@ jobs:
 
           echo "job_id=${job_id}" >>"${GITHUB_OUTPUT}"
           echo "api_base=${api_base}" >>"${GITHUB_OUTPUT}"
+          echo "idempotency_key=${idempotency_key}" >>"${GITHUB_OUTPUT}"
 
       - name: Poll SAS deploy job
         id: poll
         env:
           DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
+          IDEMPOTENCY_KEY: ${{ steps.sas.outputs.idempotency_key }}
           SAS_JOB_ID: ${{ steps.sas.outputs.job_id }}
           SAS_API_BASE: ${{ steps.sas.outputs.api_base }}
         run: |
@@ -158,12 +160,14 @@ jobs:
               --arg environment "${DEPLOY_ENVIRONMENT}" \
               --arg deployment_id "${DEPLOYMENT_ID}" \
               --arg job_id "${SAS_JOB_ID}" \
+              --arg idempotency_key "${IDEMPOTENCY_KEY}" \
               '{
                 repo: $repo,
                 sha: $sha,
                 environment: $environment,
                 github_deployment_id: ($deployment_id | tonumber),
-                job_id: $job_id
+                job_id: $job_id,
+                idempotency_key: $idempotency_key
               }'
           )"
 
@@ -178,7 +182,7 @@ jobs:
             )"
 
             status="$(jq -r '.status // empty' <<<"${response}")"
-            output_tail="$(jq -r '.output_tail // empty' <<<"${response}")"
+            output_tail="$(jq -r '.output_tail // .job.output_tail // empty' <<<"${response}")"
             echo "SAS deploy status: ${status:-unknown} (attempt ${attempt}/120)"
 
             case "${status}" in
@@ -197,7 +201,7 @@ jobs:
                 fi
                 exit 1
                 ;;
-              pending|queued|running|in_progress|'')
+              pending|queued|dispatching|running|in_progress|'')
                 sleep 10
                 ;;
               *)
