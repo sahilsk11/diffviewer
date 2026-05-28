@@ -8,17 +8,10 @@ import {
   Virtualizer,
 } from '@pierre/diffs/react';
 import { type QueryKey, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  ChevronLeft,
-  CircleCheckBig,
-  ExternalLink,
-  Flag,
-  LoaderCircle,
-  PanelLeftOpen,
-  SkipForward,
-} from 'lucide-react';
+import { ExternalLink, PanelLeftOpen } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router';
+import { flushSync } from 'react-dom';
+import { useOutletContext, useSearchParams } from 'react-router';
 
 import { type ReviewLayoutContext } from '@/components/layout/RootLayout';
 import { Button } from '@/components/ui/button';
@@ -30,6 +23,9 @@ import { diffviewerApi } from '@/lib/diffviewer-api';
 import { normalizeGitHubPullRequestUrl, parseGitHubPullRequestUrl } from '@/lib/github-pr';
 import { useReviewSession } from '@/lib/review-state';
 import type { FileSide, PullRequestDetails, PullRequestFile, ReviewStatus } from '@/lib/types';
+import { DiffLoadingState } from '@/pages/Home/DiffLoadingState';
+import { ReviewActionBar } from '@/pages/Home/ReviewActionBar';
+import { ReviewCompleteState } from '@/pages/Home/ReviewCompleteState';
 
 interface FileChange {
   id: string;
@@ -50,6 +46,7 @@ interface CommentMetadata {
 }
 
 type CommentAnnotation = DiffLineAnnotation<CommentMetadata>;
+type DiffTransitionIntent = 'approve' | 'flag' | 'previous' | 'skip';
 
 const hunkSeparatorCSS = `
   [data-separator=line-info] {
@@ -130,38 +127,6 @@ const hunkSeparatorCSS = `
   }
 `;
 
-function DiffLoadingState({ label }: { label: string }): React.ReactNode {
-  return (
-    <div className="flex h-full min-h-[28rem] flex-col bg-card" role="status" aria-live="polite">
-      <div className="flex h-11 shrink-0 items-center gap-3 border-b border-border px-4">
-        <LoaderCircle className="size-4 animate-spin text-accent" />
-        <span className="text-sm font-medium text-foreground">{label}</span>
-        <Skeleton className="ml-auto h-5 w-20" />
-      </div>
-      <div className="grid min-h-0 flex-1 grid-cols-2 divide-x divide-border">
-        {[0, 1].map((column) => (
-          <div key={column} className="min-w-0 space-y-2 p-4">
-            <div className="mb-4 flex items-center gap-3">
-              <Skeleton className="h-4 w-24" />
-              <Skeleton className="h-4 w-14" />
-            </div>
-            {Array.from({ length: 16 }, (_, index) => (
-              <div key={index} className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3">
-                <Skeleton className="h-4 w-8" />
-                <Skeleton
-                  className={
-                    index % 5 === 0 ? 'h-4 w-2/3' : index % 3 === 0 ? 'h-4 w-5/6' : 'h-4 w-full'
-                  }
-                />
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function annotationKey(side: AnnotationSide, lineNumber: number): string {
   return `${side}:${lineNumber}`;
 }
@@ -178,6 +143,37 @@ function errorText(error: unknown): string {
   if (isApiError(error)) return error.message;
   if (error instanceof Error) return error.message;
   return 'Request failed.';
+}
+
+function shouldReduceMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+function runDiffTransition(intent: DiffTransitionIntent, update: () => void): void {
+  if (document.startViewTransition === undefined || shouldReduceMotion()) {
+    update();
+    return;
+  }
+
+  const root = document.documentElement;
+  root.dataset.diffTransition = intent;
+
+  try {
+    const transition = document.startViewTransition(() => {
+      flushSync(update);
+    });
+
+    void transition.finished.finally(() => {
+      if (root.dataset.diffTransition === intent) {
+        delete root.dataset.diffTransition;
+      }
+    });
+  } catch {
+    if (root.dataset.diffTransition === intent) {
+      delete root.dataset.diffTransition;
+    }
+    update();
+  }
 }
 
 async function readContents(
@@ -224,28 +220,42 @@ async function readFileChange(
 
 interface InitialPullRequestLoad {
   error: string | null;
+  page: number | null;
   normalizedUrl: string | null;
 }
 
 function readInitialPullRequestLoad(): InitialPullRequestLoad {
-  const prParam = new URLSearchParams(window.location.search).get('pr');
-  if (prParam === null) return { error: null, normalizedUrl: null };
+  const searchParams = new URLSearchParams(window.location.search);
+  const pageParam = searchParams.get('page');
+  const page =
+    pageParam !== null && /^[1-9]\d*$/.test(pageParam) ? Number.parseInt(pageParam, 10) : null;
+  const prParam = searchParams.get('pr');
+  if (prParam === null) return { error: null, page, normalizedUrl: null };
 
   const normalizedUrl = normalizeGitHubPullRequestUrl(prParam);
   if (parseGitHubPullRequestUrl(normalizedUrl) === null) {
     return {
       error: 'Enter a GitHub pull request URL.',
+      page,
       normalizedUrl: null,
     };
   }
 
-  return { error: null, normalizedUrl };
+  return { error: null, page, normalizedUrl };
 }
 
 export function HomePage(): React.ReactNode {
   const { isSidebarOpen, showSidebar } = useOutletContext<ReviewLayoutContext>();
+  const [, setSearchParams] = useSearchParams();
   const { diffIndicators, layout, lineDiffType, showLineNumbers, wrapLines } = useDiffSettings();
-  const { pullRequest, selectedPath, setPullRequest, setSelectedPath } = useReviewSession();
+  const {
+    isReviewComplete,
+    pullRequest,
+    selectedPath,
+    setPullRequest,
+    setReviewComplete,
+    setSelectedPath,
+  } = useReviewSession();
   const queryClient = useQueryClient();
   const [initialPullRequestLoad] = useState(readInitialPullRequestLoad);
   const [selectedLines, setSelectedLines] = useState<SelectedLineRange | null>(null);
@@ -254,21 +264,31 @@ export function HomePage(): React.ReactNode {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const files = useMemo(() => pullRequest?.files ?? [], [pullRequest?.files]);
+  const showReviewComplete = pullRequest !== null && files.length > 0 && isReviewComplete;
   const currentIndex = useMemo(() => {
+    if (showReviewComplete) return files.length;
     const selectedIndex = files.findIndex((file) => file.path === selectedPath);
     return selectedIndex >= 0 ? selectedIndex : 0;
-  }, [files, selectedPath]);
+  }, [files, selectedPath, showReviewComplete]);
   const currentFile = files[currentIndex] ?? null;
 
   const loadPullRequest = useMutation({
     mutationFn: diffviewerApi.loadPullRequest,
     onSuccess: (loadedPullRequest) => {
+      const requestedIndex =
+        initialPullRequestLoad.page !== null ? initialPullRequestLoad.page - 1 : 0;
+      const selectedFilePath =
+        requestedIndex >= 0 && requestedIndex < loadedPullRequest.files.length
+          ? (loadedPullRequest.files[requestedIndex]?.path ?? null)
+          : (loadedPullRequest.files[0]?.path ?? null);
+
       setPullRequest(loadedPullRequest);
-      setSelectedPath(loadedPullRequest.files[0]?.path ?? null);
+      setSelectedPath(selectedFilePath);
       setSelectedLines(null);
       setCommentsByFile({});
       setFormError(null);
       setActionError(null);
+      setReviewComplete(false);
     },
     onError: (error) => setFormError(errorText(error)),
   });
@@ -280,6 +300,24 @@ export function HomePage(): React.ReactNode {
     // a render after load does not re-fetch the same URL.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (pullRequest === null || files.length === 0) return;
+
+    setSearchParams(
+      (currentParams) => {
+        const nextParams = new URLSearchParams(currentParams);
+        if (showReviewComplete || selectedPath === null) {
+          nextParams.delete('page');
+        } else {
+          const selectedIndex = files.findIndex((file) => file.path === selectedPath);
+          if (selectedIndex >= 0) nextParams.set('page', String(selectedIndex + 1));
+        }
+        return nextParams;
+      },
+      { replace: true },
+    );
+  }, [files, pullRequest, selectedPath, setSearchParams, showReviewComplete]);
 
   const updateState = useMutation({
     mutationFn: ({ path, state }: { path: string; state: ReviewStatus }) => {
@@ -321,17 +359,40 @@ export function HomePage(): React.ReactNode {
   const currentChange = contentQuery.data ?? null;
   const comments = currentFile === null ? [] : (commentsByFile[currentFile.path] ?? []);
 
+  const navigateToFile = useCallback(
+    (nextPath: string | null, intent: DiffTransitionIntent): void => {
+      if (nextPath === selectedPath) return;
+
+      runDiffTransition(intent, () => {
+        setReviewComplete(false);
+        setSelectedPath(nextPath);
+        setSelectedLines(null);
+      });
+    },
+    [selectedPath, setReviewComplete, setSelectedPath],
+  );
+
   const goToPrevious = useCallback((): void => {
     const nextIndex = Math.max(0, currentIndex - 1);
-    setSelectedPath(files[nextIndex]?.path ?? null);
-    setSelectedLines(null);
-  }, [currentIndex, files, setSelectedPath]);
+    navigateToFile(files[nextIndex]?.path ?? null, 'previous');
+  }, [currentIndex, files, navigateToFile]);
 
-  const goToNext = useCallback((): void => {
-    const nextIndex = Math.min(files.length - 1, currentIndex + 1);
-    setSelectedPath(files[nextIndex]?.path ?? null);
-    setSelectedLines(null);
-  }, [currentIndex, files, setSelectedPath]);
+  const goToNext = useCallback(
+    (intent: Exclude<DiffTransitionIntent, 'previous'>): void => {
+      if (currentIndex >= files.length - 1) {
+        runDiffTransition(intent, () => {
+          setReviewComplete(true);
+          setSelectedPath(null);
+          setSelectedLines(null);
+        });
+        return;
+      }
+
+      const nextPath = files[currentIndex + 1]?.path ?? null;
+      navigateToFile(nextPath, intent);
+    },
+    [currentIndex, files, navigateToFile, setReviewComplete, setSelectedPath],
+  );
 
   const markCurrent = useCallback(
     async (status: ReviewStatus): Promise<void> => {
@@ -339,7 +400,7 @@ export function HomePage(): React.ReactNode {
       try {
         await updateState.mutateAsync({ path: currentFile.path, state: status });
         setActionError(null);
-        goToNext();
+        goToNext(status === 'approved' ? 'approve' : status === 'flagged' ? 'flag' : 'skip');
       } catch (error) {
         setActionError(errorText(error));
       }
@@ -611,7 +672,11 @@ export function HomePage(): React.ReactNode {
           )}
         </div>
         <span className="flex h-8 shrink-0 items-center rounded-md border border-border bg-elevated px-2.5 text-xs font-medium leading-none text-muted-foreground">
-          {files.length === 0 ? '0 / 0' : `${currentIndex + 1} / ${files.length}`}
+          {files.length === 0
+            ? '0 / 0'
+            : showReviewComplete
+              ? `${files.length} / ${files.length}`
+              : `${currentIndex + 1} / ${files.length}`}
         </span>
       </div>
 
@@ -629,7 +694,7 @@ export function HomePage(): React.ReactNode {
         ) : null}
 
         <div
-          className="min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
+          className="diff-file-transition-surface min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
           aria-label="Pull request diff"
         >
           {pullRequest === null ? (
@@ -640,6 +705,8 @@ export function HomePage(): React.ReactNode {
                 No pull request loaded
               </div>
             )
+          ) : showReviewComplete ? (
+            <ReviewCompleteState fileCount={files.length} />
           ) : contentQuery.isError ? (
             <div className="flex h-full items-center justify-center px-6 text-sm text-danger">
               {errorText(contentQuery.error)}
@@ -661,58 +728,15 @@ export function HomePage(): React.ReactNode {
         </div>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/90 px-4 py-3 shadow-2xl shadow-black/40 backdrop-blur lg:left-[var(--review-sidebar-width)] lg:right-0">
-        <div className="mx-auto grid w-full max-w-[36rem] grid-cols-2 gap-3 sm:grid-cols-4">
-          <Button
-            variant="outline"
-            className="h-8 w-full"
-            onClick={goToPrevious}
-            disabled={currentIndex === 0 || files.length === 0}
-          >
-            <ChevronLeft className="size-4 shrink-0" />
-            Prev
-            <kbd className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-              Z / Left
-            </kbd>
-          </Button>
-          <Button
-            variant="outline"
-            className="h-8 w-full border-danger/30 bg-danger/10 text-danger hover:border-danger/50 hover:bg-danger/15"
-            onClick={() => void markCurrent('flagged')}
-            disabled={currentFile === null || updateState.isPending}
-          >
-            <Flag className="size-4 shrink-0" />
-            Flag
-            <kbd className="rounded bg-danger/15 px-1.5 py-0.5 font-mono text-xs text-danger">
-              X / Down
-            </kbd>
-          </Button>
-          <Button
-            variant="outline"
-            className="h-8 w-full border-success/30 bg-success/10 text-success hover:border-success/50 hover:bg-success/15"
-            onClick={() => void markCurrent('approved')}
-            disabled={currentFile === null || updateState.isPending}
-          >
-            <CircleCheckBig className="size-4 shrink-0" />
-            Approve
-            <kbd className="rounded bg-success/15 px-1.5 py-0.5 font-mono text-xs text-success">
-              A / Up
-            </kbd>
-          </Button>
-          <Button
-            variant="outline"
-            className="h-8 w-full border-warn/30 bg-warn/10 text-warn hover:border-warn/50 hover:bg-warn/15"
-            onClick={() => void markCurrent('skipped')}
-            disabled={currentFile === null || updateState.isPending}
-          >
-            <SkipForward className="size-4 shrink-0" />
-            Skip
-            <kbd className="rounded bg-warn/15 px-1.5 py-0.5 font-mono text-xs text-warn">
-              S / Right
-            </kbd>
-          </Button>
-        </div>
-      </div>
+      <ReviewActionBar
+        canGoPrevious={(currentIndex !== 0 || showReviewComplete) && files.length > 0}
+        canReviewCurrent={currentFile !== null}
+        isUpdating={updateState.isPending}
+        onApprove={() => void markCurrent('approved')}
+        onFlag={() => void markCurrent('flagged')}
+        onPrevious={goToPrevious}
+        onSkip={() => void markCurrent('skipped')}
+      />
     </section>
   );
 }

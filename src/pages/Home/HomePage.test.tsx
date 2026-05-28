@@ -152,7 +152,56 @@ function setupTwoFileFetch(): ReturnType<typeof vi.fn> {
   return fetchMock;
 }
 
+function setupMotionPreference(matches: boolean): void {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn((query: string) => ({
+      addEventListener: vi.fn(),
+      addListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+      matches,
+      media: query,
+      onchange: null,
+      removeEventListener: vi.fn(),
+      removeListener: vi.fn(),
+    })),
+  );
+}
+
+function setupViewTransition(): {
+  intents: string[];
+  startViewTransition: ReturnType<typeof vi.fn>;
+} {
+  const intents: string[] = [];
+  const startViewTransition = vi.fn((updateCallback: () => void) => {
+    intents.push(document.documentElement.dataset.diffTransition ?? '');
+    updateCallback();
+
+    return {
+      finished: Promise.resolve(),
+      ready: Promise.resolve(),
+      types: new Set<string>() as ViewTransitionTypeSet,
+      updateCallbackDone: Promise.resolve(),
+      skipTransition: vi.fn(),
+    } as ViewTransition;
+  });
+
+  Object.defineProperty(document, 'startViewTransition', {
+    configurable: true,
+    value: startViewTransition,
+  });
+
+  setupMotionPreference(false);
+
+  return { intents, startViewTransition };
+}
+
 afterEach(() => {
+  Object.defineProperty(document, 'startViewTransition', {
+    configurable: true,
+    value: undefined,
+  });
+  delete document.documentElement.dataset.diffTransition;
   vi.unstubAllGlobals();
   window.history.replaceState(null, '', '/');
 });
@@ -232,6 +281,144 @@ describe('HomePage', () => {
         expect.anything(),
       );
     });
+    expect(new URLSearchParams(window.location.search).get('page')).toBe('2');
+  });
+
+  it('loads the selected file from the page URL parameter', async () => {
+    const fetchMock = setupTwoFileFetch();
+    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123&page=2');
+
+    renderWithProviders(<App />);
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('second-right-content');
+    });
+    expect(screen.getByText('2 / 2')).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining('/contents?path=src%2Fsecond.ts&side=RIGHT'),
+      expect.anything(),
+    );
+  });
+
+  it('shows a completion view after the final file is reviewed', async () => {
+    const fetchMock = setupTwoFileFetch();
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+
+    renderWithProviders(<App />);
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('first-right-content');
+    });
+
+    await user.click(screen.getByRole('button', { name: /Approve/ }));
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('second-right-content');
+    });
+
+    await user.click(screen.getByRole('button', { name: /Approve/ }));
+
+    expect(await screen.findByText('Everything has been viewed')).toBeInTheDocument();
+    expect(
+      screen.getByText('All 2 files in this pull request have been reviewed.'),
+    ).toBeInTheDocument();
+    expect(screen.getByText('2 / 2')).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get('page')).toBeNull();
+    expect(screen.getByRole('button', { name: /Prev/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Approve/ })).toBeDisabled();
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/repos/OWNER/REPO/pulls/123/files/state',
+        expect.objectContaining({
+          body: JSON.stringify({ path: 'src/second.ts', state: 'approved' }),
+          method: 'PUT',
+        }),
+      );
+    });
+
+    await user.click(screen.getByRole('button', { name: /Prev/ }));
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('second-right-content');
+    });
+    expect(screen.queryByText('Everything has been viewed')).not.toBeInTheDocument();
+  });
+
+  it('uses directional view transitions for review and previous navigation', async () => {
+    setupTwoFileFetch();
+    const { intents, startViewTransition } = setupViewTransition();
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+
+    renderWithProviders(<App />);
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('first-right-content');
+    });
+
+    await user.click(screen.getByRole('button', { name: /Approve/ }));
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('second-right-content');
+    });
+
+    await user.click(screen.getByRole('button', { name: /Prev/ }));
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('first-right-content');
+    });
+
+    expect(startViewTransition).toHaveBeenCalledTimes(2);
+    expect(intents).toEqual(['approve', 'previous']);
+  });
+
+  it('slides skipped files in with the skip transition intent', async () => {
+    setupTwoFileFetch();
+    const { intents, startViewTransition } = setupViewTransition();
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+
+    renderWithProviders(<App />);
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('first-right-content');
+    });
+
+    await user.click(screen.getByRole('button', { name: /Skip/ }));
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('second-right-content');
+    });
+
+    expect(startViewTransition).toHaveBeenCalledTimes(1);
+    expect(intents).toEqual(['skip']);
+  });
+
+  it('does not start a view transition when reduced motion is preferred', async () => {
+    setupTwoFileFetch();
+    setupMotionPreference(true);
+    const startViewTransition = vi.fn();
+    Object.defineProperty(document, 'startViewTransition', {
+      configurable: true,
+      value: startViewTransition,
+    });
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+
+    renderWithProviders(<App />);
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('first-right-content');
+    });
+
+    await user.click(screen.getByRole('button', { name: /Approve/ }));
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('second-right-content');
+    });
+
+    expect(startViewTransition).not.toHaveBeenCalled();
   });
 
   it('maps arrow keys to review navigation actions', async () => {

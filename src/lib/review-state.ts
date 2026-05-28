@@ -1,11 +1,13 @@
-import { createContext, createElement, useContext, useMemo, useState } from 'react';
+import { createContext, createElement, useCallback, useContext, useMemo, useState } from 'react';
 
 import type { PullRequestDetails } from '@/lib/types';
 
 interface ReviewSessionValue {
+  isReviewComplete: boolean;
   pullRequest: PullRequestDetails | null;
   selectedPath: string | null;
   setPullRequest: (pullRequest: PullRequestDetails | null) => void;
+  setReviewComplete: (isComplete: boolean) => void;
   setSelectedPath: (path: string | null) => void;
 }
 
@@ -17,11 +19,23 @@ export function ReviewSessionProvider({
   children: React.ReactNode;
 }): React.ReactNode {
   const [pullRequest, setPullRequest] = useState<PullRequestDetails | null>(null);
+  const [isReviewComplete, setReviewComplete] = useState(false);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const selectPath = useCallback((path: string | null) => {
+    if (path !== null) setReviewComplete(false);
+    setSelectedPath(path);
+  }, []);
 
   const value = useMemo(
-    () => ({ pullRequest, selectedPath, setPullRequest, setSelectedPath }),
-    [pullRequest, selectedPath],
+    () => ({
+      isReviewComplete,
+      pullRequest,
+      selectedPath,
+      setPullRequest,
+      setReviewComplete,
+      setSelectedPath: selectPath,
+    }),
+    [isReviewComplete, pullRequest, selectPath, selectedPath],
   );
 
   return createElement(ReviewSessionContext.Provider, { value }, children);
