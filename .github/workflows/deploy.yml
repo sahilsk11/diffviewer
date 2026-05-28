@@ -1,0 +1,251 @@
+name: deploy
+
+on:
+  workflow_run:
+    workflows: ['frontend']
+    types: [completed]
+    branches: ['main']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: diffviewer-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_ENVIRONMENT: production
+      DEPLOY_REF: ${{ github.event.workflow_run.head_sha || github.sha }}
+      SAS_DEPLOY_API_URL: ${{ vars.SAS_DIFFVIEWER_DEPLOY_API_URL }}
+      SAS_DEPLOY_TOKEN: ${{ secrets.SAS_DIFFVIEWER_DEPLOY_TOKEN }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.DEPLOY_REF }}
+
+      - name: Validate deployment configuration
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${SAS_DEPLOY_API_URL}" ]]; then
+            echo "SAS_DIFFVIEWER_DEPLOY_API_URL repository variable is required" >&2
+            exit 1
+          fi
+
+          if [[ -z "${SAS_DEPLOY_TOKEN}" ]]; then
+            echo "SAS_DIFFVIEWER_DEPLOY_TOKEN repository secret is required" >&2
+            exit 1
+          fi
+
+      - name: Create GitHub deployment
+        id: deployment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          payload="$(jq -n \
+            --arg ref "${DEPLOY_REF}" \
+            --arg environment "${DEPLOY_ENVIRONMENT}" \
+            '{
+              ref: $ref,
+              environment: $environment,
+              auto_merge: false,
+              required_contexts: [],
+              description: "Deploy DiffViewer through SAS"
+            }')"
+
+          deployment="$(
+            gh api \
+              --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "/repos/${GITHUB_REPOSITORY}/deployments" \
+              --input - <<<"${payload}"
+          )"
+
+          deployment_id="$(jq -r '.id' <<<"${deployment}")"
+          if [[ "${deployment_id}" == "null" || -z "${deployment_id}" ]]; then
+            echo "GitHub deployment response did not include an id" >&2
+            jq . <<<"${deployment}" >&2
+            exit 1
+          fi
+
+          echo "id=${deployment_id}" >>"${GITHUB_OUTPUT}"
+
+      - name: Mark deployment in progress
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
+        run: |
+          set -euo pipefail
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state=in_progress \
+            -f environment="${DEPLOY_ENVIRONMENT}" \
+            -f log_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            -f description="SAS deployment started"
+
+      - name: Start SAS deploy job
+        id: sas
+        env:
+          DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
+        run: |
+          set -euo pipefail
+
+          api_base="${SAS_DEPLOY_API_URL%/}"
+          idempotency_key="diffviewer:${DEPLOY_ENVIRONMENT}:${DEPLOY_REF}"
+          request="$(
+            jq -n \
+              --arg repo "${GITHUB_REPOSITORY}" \
+              --arg sha "${DEPLOY_REF}" \
+              --arg environment "${DEPLOY_ENVIRONMENT}" \
+              --arg deployment_id "${DEPLOYMENT_ID}" \
+              --arg run_id "${GITHUB_RUN_ID}" \
+              --arg idempotency_key "${idempotency_key}" \
+              '{
+                repo: $repo,
+                sha: $sha,
+                environment: $environment,
+                github_deployment_id: ($deployment_id | tonumber),
+                github_run_id: ($run_id | tonumber),
+                idempotency_key: $idempotency_key
+              }'
+          )"
+
+          response="$(
+            curl --fail-with-body --silent --show-error \
+              --request POST \
+              --header "Authorization: Bearer ${SAS_DEPLOY_TOKEN}" \
+              --header "Content-Type: application/json" \
+              --data "${request}" \
+              "${api_base}/deployments/diffviewer"
+          )"
+
+          job_id="$(jq -r '.job_id // .id // empty' <<<"${response}")"
+          if [[ -z "${job_id}" ]]; then
+            echo "SAS deploy response did not include a job_id" >&2
+            jq . <<<"${response}" >&2
+            exit 1
+          fi
+
+          echo "job_id=${job_id}" >>"${GITHUB_OUTPUT}"
+          echo "api_base=${api_base}" >>"${GITHUB_OUTPUT}"
+
+      - name: Poll SAS deploy job
+        id: poll
+        env:
+          DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
+          SAS_JOB_ID: ${{ steps.sas.outputs.job_id }}
+          SAS_API_BASE: ${{ steps.sas.outputs.api_base }}
+        run: |
+          set -euo pipefail
+
+          request="$(
+            jq -n \
+              --arg repo "${GITHUB_REPOSITORY}" \
+              --arg sha "${DEPLOY_REF}" \
+              --arg environment "${DEPLOY_ENVIRONMENT}" \
+              --arg deployment_id "${DEPLOYMENT_ID}" \
+              --arg job_id "${SAS_JOB_ID}" \
+              '{
+                repo: $repo,
+                sha: $sha,
+                environment: $environment,
+                github_deployment_id: ($deployment_id | tonumber),
+                job_id: $job_id
+              }'
+          )"
+
+          for attempt in {1..120}; do
+            response="$(
+              curl --fail-with-body --silent --show-error \
+                --request POST \
+                --header "Authorization: Bearer ${SAS_DEPLOY_TOKEN}" \
+                --header "Content-Type: application/json" \
+                --data "${request}" \
+                "${SAS_API_BASE}/deployments/diffviewer/status"
+            )"
+
+            status="$(jq -r '.status // empty' <<<"${response}")"
+            output_tail="$(jq -r '.output_tail // empty' <<<"${response}")"
+            echo "SAS deploy status: ${status:-unknown} (attempt ${attempt}/120)"
+
+            case "${status}" in
+              succeeded|success)
+                echo "state=success" >>"${GITHUB_OUTPUT}"
+                echo "description=SAS deployment succeeded" >>"${GITHUB_OUTPUT}"
+                exit 0
+                ;;
+              failed|failure|cancelled|canceled|timed_out|timeout)
+                {
+                  echo "state=failure"
+                  echo "description=SAS deployment failed"
+                } >>"${GITHUB_OUTPUT}"
+                if [[ -n "${output_tail}" ]]; then
+                  echo "${output_tail}" >&2
+                fi
+                exit 1
+                ;;
+              pending|queued|running|in_progress|'')
+                sleep 10
+                ;;
+              *)
+                echo "Unknown SAS deploy status: ${status}" >&2
+                jq . <<<"${response}" >&2
+                exit 1
+                ;;
+            esac
+          done
+
+          {
+            echo "state=failure"
+            echo "description=SAS deployment timed out"
+          } >>"${GITHUB_OUTPUT}"
+          exit 1
+
+      - name: Mark deployment success
+        if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
+        run: |
+          set -euo pipefail
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state=success \
+            -f environment="${DEPLOY_ENVIRONMENT}" \
+            -f log_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            -f description="SAS deployment succeeded"
+
+      - name: Mark deployment failure
+        if: failure() && steps.deployment.outputs.id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYMENT_ID: ${{ steps.deployment.outputs.id }}
+        run: |
+          set -euo pipefail
+
+          gh api \
+            --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "/repos/${GITHUB_REPOSITORY}/deployments/${DEPLOYMENT_ID}/statuses" \
+            -f state=failure \
+            -f environment="${DEPLOY_ENVIRONMENT}" \
+            -f log_url="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            -f description="SAS deployment failed"

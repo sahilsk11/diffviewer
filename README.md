@@ -90,6 +90,30 @@ npm run format:check  # prettier --check . (CI uses this)
 CI runs install, typecheck, lint, format check, tests, and build against the
 Node version pinned in `.node-version`.
 
+## Deployment
+
+Production deploys are handled by `.github/workflows/deploy.yml`. The workflow
+runs after the `frontend` workflow succeeds on `main`, and it can also be run
+manually with `workflow_dispatch`.
+
+The deploy workflow creates the GitHub Deployment record with the built-in
+`GITHUB_TOKEN`, then calls the SAS DiffViewer deployment API with a repo-scoped
+bearer token. SAS owns the host-side deploy and returns job status for polling;
+this repo does not shell into SAS or depend on SAS implementation details beyond
+the two API endpoints.
+
+Required repository configuration:
+
+| Name                            | Type     | Purpose                                              |
+| ------------------------------- | -------- | ---------------------------------------------------- |
+| `SAS_DIFFVIEWER_DEPLOY_API_URL` | Variable | Base URL for the SAS deploy API.                     |
+| `SAS_DIFFVIEWER_DEPLOY_TOKEN`   | Secret   | Bearer token for the `diffviewer-deploy` SAS caller. |
+
+The workflow grants `GITHUB_TOKEN` only `contents: read` and
+`deployments: write`. It uses a stable idempotency key of
+`diffviewer:production:<sha>` and a `diffviewer-production` concurrency group so
+mainline deploy attempts do not overlap.
+
 ## Backend
 
 The optional backend lives in `backend/` and exposes the GitHub-backed diff
