@@ -14,13 +14,14 @@ import { isApiError } from '@/lib/api';
 import { useDiffSettings } from '@/lib/diff-settings';
 import { diffviewerApi } from '@/lib/diffviewer-api';
 import { normalizeGitHubPullRequestUrl, parseGitHubPullRequestUrl } from '@/lib/github-pr';
-import { useReviewSession } from '@/lib/review-state';
+import { readStateByPath, useReviewSession } from '@/lib/review-state';
 import type { FileSide, PullRequestDetails, PullRequestFile, ReviewStatus } from '@/lib/types';
 import {
   CommentAnnotationCard,
   type CommentAnnotation,
   type CommentMetadata,
 } from '@/pages/Home/CommentAnnotationCard';
+import { DiffFileHeader } from '@/pages/Home/DiffFileHeader';
 import { FileInsightsPanel, type InsightsPanelTab } from '@/pages/Home/FileInsightsPanel';
 import { hunkSeparatorCSS } from '@/pages/Home/hunk-separator-css';
 import {
@@ -195,6 +196,7 @@ export function HomePage(): React.ReactNode {
     isReviewComplete,
     pullRequest,
     selectedPath,
+    setFileReviewState,
     setPullRequest,
     setReviewComplete,
     setSelectedPath,
@@ -216,6 +218,10 @@ export function HomePage(): React.ReactNode {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const files = useMemo(() => pullRequest?.files ?? [], [pullRequest?.files]);
+  const reviewStateByPath = useMemo(
+    () => (pullRequest === null ? {} : readStateByPath(pullRequest)),
+    [pullRequest],
+  );
   const showReviewComplete = pullRequest !== null && files.length > 0 && isReviewComplete;
   const currentIndex = useMemo(() => {
     if (showReviewComplete) return files.length;
@@ -368,14 +374,15 @@ export function HomePage(): React.ReactNode {
     async (status: ReviewStatus): Promise<void> => {
       if (currentFile === null) return;
       try {
-        await updateState.mutateAsync({ path: currentFile.path, state: status });
+        const result = await updateState.mutateAsync({ path: currentFile.path, state: status });
+        setFileReviewState(result.path, result.state);
         setActionError(null);
         goToNext(status === 'approved' ? 'approve' : status === 'flagged' ? 'flag' : 'skip');
       } catch (error) {
         setActionError(errorText(error));
       }
     },
-    [currentFile, goToNext, updateState],
+    [currentFile, goToNext, setFileReviewState, updateState],
   );
 
   const addDraftComment = useCallback(
@@ -726,6 +733,12 @@ export function HomePage(): React.ReactNode {
             options={options}
             panelRef={diffPanelRef}
             renderAnnotation={renderAnnotation}
+            renderCustomHeader={(fileDiff) => (
+              <DiffFileHeader
+                fileDiff={fileDiff}
+                reviewState={currentFile === null ? undefined : reviewStateByPath[currentFile.path]}
+              />
+            )}
             selectedLines={visibleSelectedLines}
             showLineAction={visibleLineActionTarget !== null}
             showReviewComplete={showReviewComplete}

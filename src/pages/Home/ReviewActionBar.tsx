@@ -14,6 +14,8 @@ interface ReviewActionBarProps {
   onSkip: () => void;
 }
 
+const actionButtonClass = 'h-8 w-full';
+
 export function ReviewActionBar({
   canGoPrevious,
   canReviewCurrent,
@@ -33,10 +35,10 @@ export function ReviewActionBar({
         } as CSSProperties
       }
     >
-      <div className="mx-auto grid w-full max-w-[36rem] grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid justify-center gap-3 [grid-template-columns:repeat(2,8.5rem)] sm:[grid-template-columns:repeat(4,8.5rem)]">
         <Button
           variant="outline"
-          className="h-8 w-full"
+          className={actionButtonClass}
           onClick={onPrevious}
           disabled={!canGoPrevious}
         >
@@ -48,7 +50,7 @@ export function ReviewActionBar({
         </Button>
         <Button
           variant="outline"
-          className="h-8 w-full border-danger/30 bg-danger/10 text-danger hover:border-danger/50 hover:bg-danger/15"
+          className={`${actionButtonClass} border-danger/30 bg-danger/10 text-danger hover:border-danger/50 hover:bg-danger/15`}
           onClick={onFlag}
           disabled={!canReviewCurrent || isUpdating}
         >
@@ -58,7 +60,7 @@ export function ReviewActionBar({
         </Button>
         <Button
           variant="outline"
-          className="h-8 w-full border-success/30 bg-success/10 text-success hover:border-success/50 hover:bg-success/15"
+          className={`${actionButtonClass} border-success/30 bg-success/10 text-success hover:border-success/50 hover:bg-success/15`}
           onClick={onApprove}
           disabled={!canReviewCurrent || isUpdating}
         >
@@ -70,7 +72,7 @@ export function ReviewActionBar({
         </Button>
         <Button
           variant="outline"
-          className="h-8 w-full border-warn/30 bg-warn/10 text-warn hover:border-warn/50 hover:bg-warn/15"
+          className={`${actionButtonClass} border-warn/30 bg-warn/10 text-warn hover:border-warn/50 hover:bg-warn/15`}
           onClick={onSkip}
           disabled={!canReviewCurrent || isUpdating}
         >
