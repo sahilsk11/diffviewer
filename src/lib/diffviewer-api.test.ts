@@ -65,6 +65,7 @@ describe('diffviewerApi', () => {
         path: 'src/example.ts',
         line: 42,
         side: 'RIGHT',
+        headSha: 'head_sha',
         startLine: 40,
         startSide: 'RIGHT',
       },
@@ -76,6 +77,7 @@ describe('diffviewerApi', () => {
       path: 'src/example.ts',
       line: 42,
       side: 'RIGHT',
+      headSha: 'head_sha',
       startLine: 40,
       startSide: 'RIGHT',
     });

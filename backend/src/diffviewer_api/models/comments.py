@@ -8,6 +8,7 @@ class CommentCreate(BaseModel):
     path: str
     line: int = Field(gt=0)
     side: FileSide
+    head_sha: str = Field(validation_alias="headSha")
     start_line: int | None = Field(default=None, gt=0, validation_alias="startLine")
     start_side: FileSide | None = Field(default=None, validation_alias="startSide")
 

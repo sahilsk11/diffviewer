@@ -71,12 +71,12 @@ function errorText(error: unknown): string {
 }
 
 async function readContents(
-  ref: NonNullable<ReturnType<typeof parseGitHubPullRequestUrl>>,
+  pullRequest: PullRequestDetails,
   path: string,
   side: FileSide,
 ): Promise<string> {
   try {
-    return (await diffviewerApi.getFileContents(ref, path, side)).contents;
+    return (await diffviewerApi.getFileContents(pullRequest.ref, path, side, pullRequest)).contents;
   } catch (error) {
     if (isApiError(error) && error.status === 404) return '';
     throw error;
@@ -100,8 +100,8 @@ async function readFileChange(
   file: PullRequestFile,
 ): Promise<FileChange> {
   const [oldContents, newContents] = await Promise.all([
-    readContents(pullRequest.ref, file.path, 'LEFT'),
-    readContents(pullRequest.ref, file.path, 'RIGHT'),
+    readContents(pullRequest, file.path, 'LEFT'),
+    readContents(pullRequest, file.path, 'RIGHT'),
   ]);
 
   return {
@@ -414,6 +414,7 @@ export function HomePage(): React.ReactNode {
         path: currentFile.path,
         line: endLine,
         side,
+        headSha: pullRequest.headSha,
         ...(startLine !== endLine ? { startLine, startSide: side } : {}),
       });
       patchComment(annotation.metadata.id, {
