@@ -355,16 +355,16 @@ export function HomePage(): React.ReactNode {
 
       const key = event.key.toLowerCase();
 
-      if (key === 'z') {
+      if (key === 'z' || event.key === 'ArrowLeft') {
         event.preventDefault();
         goToPrevious();
-      } else if (key === 'x') {
+      } else if (key === 'x' || event.key === 'ArrowDown') {
         event.preventDefault();
         void markCurrent('flagged');
-      } else if (key === 'a') {
+      } else if (key === 'a' || event.key === 'ArrowUp') {
         event.preventDefault();
         void markCurrent('approved');
-      } else if (key === 's') {
+      } else if (key === 's' || event.key === 'ArrowRight') {
         event.preventDefault();
         void markCurrent('skipped');
       }
@@ -672,7 +672,7 @@ export function HomePage(): React.ReactNode {
             <ChevronLeft className="size-4 shrink-0" />
             Prev
             <kbd className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-              Z
+              Z / Left
             </kbd>
           </Button>
           <Button
@@ -684,7 +684,7 @@ export function HomePage(): React.ReactNode {
             <Flag className="size-4 shrink-0" />
             Flag
             <kbd className="rounded bg-danger/15 px-1.5 py-0.5 font-mono text-xs text-danger">
-              X
+              X / Down
             </kbd>
           </Button>
           <Button
@@ -696,7 +696,7 @@ export function HomePage(): React.ReactNode {
             <CircleCheckBig className="size-4 shrink-0" />
             Approve
             <kbd className="rounded bg-success/15 px-1.5 py-0.5 font-mono text-xs text-success">
-              A
+              A / Up
             </kbd>
           </Button>
           <Button
@@ -707,7 +707,9 @@ export function HomePage(): React.ReactNode {
           >
             <SkipForward className="size-4 shrink-0" />
             Skip
-            <kbd className="rounded bg-warn/15 px-1.5 py-0.5 font-mono text-xs text-warn">S</kbd>
+            <kbd className="rounded bg-warn/15 px-1.5 py-0.5 font-mono text-xs text-warn">
+              S / Right
+            </kbd>
           </Button>
         </div>
       </div>
