@@ -583,25 +583,25 @@ export function HomePage(): React.ReactNode {
   }
 
   return (
-    <section className="flex min-h-screen w-full flex-col gap-5 px-4 pb-32 pt-9 sm:px-6">
+    <section className="flex min-h-screen w-full flex-col gap-4 px-4 pb-28 pt-8 sm:px-6">
       {formError !== null ? (
         <p className="text-sm text-danger" role="alert">
           {formError}
         </p>
       ) : null}
 
-      <div className="flex w-full items-center justify-between gap-4">
+      <div className="grid h-8 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
         {loadPullRequest.isPending && pullRequest === null ? (
           <div className="min-w-0 flex-1 space-y-2">
             <Skeleton className="h-5 w-full max-w-lg" />
             <Skeleton className="h-3 w-56" />
           </div>
         ) : (
-          <h1 className="min-w-0 truncate text-base font-semibold text-foreground">
+          <h1 className="min-w-0 truncate text-base font-semibold leading-none text-foreground">
             {pullRequest?.title ?? 'No pull request loaded'}
           </h1>
         )}
-        <span className="shrink-0 rounded-md border border-border bg-elevated px-2.5 py-1 text-xs font-medium text-muted-foreground">
+        <span className="shrink-0 self-center rounded-md border border-border bg-elevated px-2.5 py-1 text-xs font-medium leading-none text-muted-foreground">
           {files.length === 0 ? '0 / 0' : `${currentIndex + 1} / ${files.length}`}
         </span>
       </div>
@@ -644,7 +644,7 @@ export function HomePage(): React.ReactNode {
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-4 z-30 flex min-h-20 flex-wrap items-center justify-center gap-x-3 gap-y-3 border border-border bg-background/90 px-4 py-4 shadow-2xl shadow-black/40 backdrop-blur lg:left-[var(--review-sidebar-width)] lg:right-0">
+      <div className="fixed inset-x-0 bottom-0 z-30 flex min-h-20 flex-wrap items-center justify-center gap-x-3 gap-y-3 border-t border-border bg-background/90 px-4 py-4 shadow-2xl shadow-black/40 backdrop-blur lg:left-[var(--review-sidebar-width)] lg:right-0">
         <Button
           variant="outline"
           className="h-10 w-32"

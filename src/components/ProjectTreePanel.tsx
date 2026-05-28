@@ -117,21 +117,6 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
     }
   }, [gitStatus, mode, model, paths, selectedPath]);
 
-  const footer = useMemo(() => {
-    if (pullRequest === null) return 'No pull request loaded';
-    if (mode === 'full' && treeQuery.isLoading) return 'Loading repository tree';
-    if (mode === 'full' && treeQuery.isError) return 'Repository tree unavailable';
-    if (mode === 'full' && treeQuery.data?.truncated === true) return 'Repository tree truncated';
-    return `${paths.length} files`;
-  }, [
-    mode,
-    paths.length,
-    pullRequest,
-    treeQuery.data?.truncated,
-    treeQuery.isError,
-    treeQuery.isLoading,
-  ]);
-
   return (
     <aside
       className="flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-border bg-card"
@@ -260,9 +245,6 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
           } as CSSProperties
         }
       />
-      <div className="flex min-h-20 shrink-0 items-center border-t border-border px-3 py-4 text-xs text-muted-foreground">
-        {footer}
-      </div>
     </aside>
   );
 });
