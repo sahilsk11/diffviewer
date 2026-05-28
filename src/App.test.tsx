@@ -53,6 +53,20 @@ describe('App', () => {
     expect(screen.getByRole('radio', { name: 'Split' })).toHaveAttribute('aria-checked', 'true');
   });
 
+  it('wraps diff lines by default', async () => {
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
+
+    renderWithProviders(<App />);
+
+    await user.click(screen.getByRole('button', { name: 'Diff settings' }));
+
+    expect(screen.getByRole('menuitemcheckbox', { name: /Wrap lines/ })).toHaveAttribute(
+      'aria-checked',
+      'true',
+    );
+  });
+
   it('starts the sidebar closed below the desktop breakpoint', () => {
     stubDesktopBreakpoint(false);
 

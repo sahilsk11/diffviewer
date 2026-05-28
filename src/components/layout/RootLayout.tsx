@@ -9,6 +9,7 @@ import { ReviewSessionProvider } from '@/lib/review-state';
 export interface ReviewLayoutContext {
   isSidebarOpen: boolean;
   showSidebar: () => void;
+  toggleSidebar: () => void;
 }
 
 function shouldStartWithSidebarOpen(): boolean {
@@ -55,7 +56,13 @@ export function RootLayout(): React.ReactNode {
                 } as CSSProperties
               }
             >
-              <Outlet context={{ isSidebarOpen, showSidebar: () => setIsSidebarOpen(true) }} />
+              <Outlet
+                context={{
+                  isSidebarOpen,
+                  showSidebar: () => setIsSidebarOpen(true),
+                  toggleSidebar: () => setIsSidebarOpen((isOpen) => !isOpen),
+                }}
+              />
             </main>
           </div>
         </div>
