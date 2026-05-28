@@ -1,8 +1,8 @@
-import { type GitStatus, type GitStatusEntry } from '@pierre/trees';
+import { type FileTreeRowDecoration, type GitStatus, type GitStatusEntry } from '@pierre/trees';
 import { FileTree, useFileTree } from '@pierre/trees/react';
 import { useQuery } from '@tanstack/react-query';
 import { PanelLeftClose, Settings, WrapText } from 'lucide-react';
-import { type CSSProperties, memo, useEffect, useMemo, useState } from 'react';
+import { type CSSProperties, memo, useEffect, useMemo, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +18,13 @@ import {
 import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { indicatorOptions, lineDiffOptions, useDiffSettings } from '@/lib/diff-settings';
 import { diffviewerApi } from '@/lib/diffviewer-api';
-import { useReviewSession } from '@/lib/review-state';
+import { readStateByPath, useReviewSession } from '@/lib/review-state';
+import {
+  isReviewedState,
+  reviewStatusPresentation,
+  reviewStatusTreeSprite,
+} from '@/lib/review-status';
+import type { ReviewStateValue } from '@/lib/types';
 
 type TreeMode = 'modified' | 'full';
 
@@ -89,11 +95,25 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
       })) ?? [],
     [pullRequest?.files],
   );
+  const reviewStateByPath = useMemo<Record<string, ReviewStateValue>>(
+    () => (pullRequest === null ? {} : readStateByPath(pullRequest)),
+    [pullRequest],
+  );
+  const reviewStateByPathRef = useRef(reviewStateByPath);
+  reviewStateByPathRef.current = reviewStateByPath;
+  const reviewStateSignature = useMemo(
+    () =>
+      Object.entries(reviewStateByPath)
+        .sort(([leftPath], [rightPath]) => leftPath.localeCompare(rightPath))
+        .map(([path, state]) => `${path}:${state}`)
+        .join('|'),
+    [reviewStateByPath],
+  );
 
   const { model } = useFileTree({
     flattenEmptyDirectories: true,
     gitStatus,
-    icons: 'complete',
+    icons: { colored: true, set: 'complete', spriteSheet: reviewStatusTreeSprite },
     initialExpansion: 2,
     initialSelectedPaths: selectedPath === null ? undefined : [selectedPath],
     onSelectionChange: (selectedPaths) => {
@@ -102,7 +122,73 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
       if (nextPath !== selectedPath) setSelectedPath(nextPath);
     },
     paths,
+    renderRowDecoration: ({ row }): FileTreeRowDecoration | null => {
+      if (row.kind !== 'file') return null;
+
+      const state = reviewStateByPathRef.current[row.path];
+      if (!isReviewedState(state)) return null;
+
+      return {
+        icon: {
+          name: reviewStatusPresentation[state].treeIconName,
+          height: 13,
+          viewBox: '0 0 24 24',
+          width: 13,
+        },
+        title: reviewStatusPresentation[state].label,
+      };
+    },
     stickyFolders: true,
+    unsafeCSS: `
+      [data-item-section='decoration'] {
+        width: 24px;
+      }
+
+      [data-item-section='decoration'] > span {
+        align-items: center;
+        border: 1px solid transparent;
+        border-radius: 6px;
+        display: inline-flex;
+        height: 18px;
+        justify-content: center;
+        width: 18px;
+      }
+
+      [data-item-section='decoration'] > span:has([data-icon-name='diffviewer-review-approved']) {
+        background: color-mix(in srgb, var(--color-success, #10b981) 10%, transparent);
+        border-color: color-mix(in srgb, var(--color-success, #10b981) 30%, transparent);
+      }
+
+      [data-item-section='decoration'] > span:has([data-icon-name='diffviewer-review-flagged']) {
+        background: color-mix(in srgb, var(--color-danger, #ef4444) 10%, transparent);
+        border-color: color-mix(in srgb, var(--color-danger, #ef4444) 30%, transparent);
+      }
+
+      [data-item-section='decoration'] > span:has([data-icon-name='diffviewer-review-skipped']) {
+        background: color-mix(in srgb, var(--color-warn, #f59e0b) 10%, transparent);
+        border-color: color-mix(in srgb, var(--color-warn, #f59e0b) 30%, transparent);
+      }
+
+      [data-icon-name='diffviewer-review-approved'] {
+        color: var(--color-success, #10b981);
+      }
+
+      [data-icon-name='diffviewer-review-flagged'] {
+        color: var(--color-danger, #ef4444);
+      }
+
+      [data-icon-name='diffviewer-review-skipped'] {
+        color: var(--color-warn, #f59e0b);
+      }
+
+      [data-icon-name^='diffviewer-review-'] {
+        fill: none;
+        stroke: currentColor;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        stroke-width: 2;
+      }
+    `,
   });
 
   useEffect(() => {
@@ -116,6 +202,10 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
       model.scrollToPath(selectedPath, { offset: 'nearest' });
     }
   }, [gitStatus, mode, model, paths, selectedPath]);
+
+  useEffect(() => {
+    model.setGitStatus(gitStatus);
+  }, [gitStatus, model, reviewStateSignature]);
 
   return (
     <aside

@@ -1,6 +1,7 @@
 import {
   type DiffLineAnnotation,
   type FileContents as DiffFileContents,
+  type FileDiffMetadata,
   type SelectedLineRange,
   MultiFileDiff,
   Virtualizer,
@@ -31,6 +32,7 @@ interface ReviewDiffPanelProps<LAnnotation> {
   options: Record<string, unknown>;
   panelRef: RefObject<HTMLDivElement | null>;
   renderAnnotation: (annotation: DiffLineAnnotation<LAnnotation>) => React.ReactNode;
+  renderCustomHeader: (fileDiff: FileDiffMetadata) => React.ReactNode;
   selectedLines: SelectedLineRange | null;
   showLineAction: boolean;
   showReviewComplete: boolean;
@@ -52,6 +54,7 @@ export function ReviewDiffPanel<LAnnotation>({
   options,
   panelRef,
   renderAnnotation,
+  renderCustomHeader,
   selectedLines,
   showLineAction,
   showReviewComplete,
@@ -96,6 +99,7 @@ export function ReviewDiffPanel<LAnnotation>({
             lineAnnotations={comments}
             selectedLines={selectedLines}
             renderAnnotation={renderAnnotation}
+            renderCustomHeader={renderCustomHeader}
           />
         </Virtualizer>
       )}

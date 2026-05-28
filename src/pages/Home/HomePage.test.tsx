@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +21,8 @@ vi.mock('@pierre/diffs/react', async () => {
       oldFile,
       options,
       renderAnnotation,
+      renderCustomHeader,
+      renderHeaderMetadata,
     }: {
       lineAnnotations?: MockAnnotation[];
       newFile: { contents: string; name: string };
@@ -39,12 +41,24 @@ vi.mock('@pierre/diffs/react', async () => {
         }) => void;
       };
       renderAnnotation?: (annotation: MockAnnotation) => React.ReactNode;
+      renderCustomHeader?: (fileDiff: {
+        hunks: { additionLines: number; deletionLines: number }[];
+        name: string;
+        type: 'change';
+      }) => React.ReactNode;
+      renderHeaderMetadata?: () => React.ReactNode;
     }) => {
       const [renderedNewFile] = React.useState(newFile);
       const [renderedOldFile] = React.useState(oldFile);
+      const fileDiff = {
+        hunks: [{ additionLines: 1, deletionLines: 1 }],
+        name: renderedNewFile.name,
+        type: 'change' as const,
+      };
 
       return (
         <div aria-label="Mock diff">
+          <div>{renderCustomHeader?.(fileDiff) ?? renderHeaderMetadata?.()}</div>
           <div>
             {renderedOldFile.name}: {renderedOldFile.contents}
           </div>
@@ -746,10 +760,13 @@ describe('HomePage', () => {
     await screen.findByText('PR title');
     await user.click(screen.getByRole('button', { name: 'Show insights' }));
 
-    expect(screen.getByLabelText('File insights')).toBeInTheDocument();
+    const insightsPanel = screen.getByLabelText('File insights');
+    expect(insightsPanel).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Show insights' })).not.toBeInTheDocument();
-    expect(screen.getByText('src/example.ts')).toBeInTheDocument();
-    expect(screen.getByText('modified file with 2 additions and 1 deletion.')).toBeInTheDocument();
+    expect(within(insightsPanel).getByText('src/example.ts')).toBeInTheDocument();
+    expect(
+      within(insightsPanel).getByText('modified file with 2 additions and 1 deletion.'),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Hide insights' }));
 
@@ -767,8 +784,11 @@ describe('HomePage', () => {
     await screen.findByText('PR title');
     await user.click(screen.getByRole('button', { name: 'Show insights' }));
 
-    expect(screen.getByText('src/pages/Home/HomePage.tsx')).toBeInTheDocument();
-    expect(screen.getByText('modified file with 7 additions and 4 deletions.')).toBeInTheDocument();
+    const insightsPanel = screen.getByLabelText('File insights');
+    expect(within(insightsPanel).getByText('src/pages/Home/HomePage.tsx')).toBeInTheDocument();
+    expect(
+      within(insightsPanel).getByText('modified file with 7 additions and 4 deletions.'),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText(/Turns the main page into a PR-first review surface/i),
     ).not.toBeInTheDocument();
