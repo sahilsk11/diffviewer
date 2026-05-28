@@ -53,82 +53,80 @@ type CommentAnnotation = DiffLineAnnotation<CommentMetadata>;
 
 const hunkSeparatorCSS = `
   [data-separator=line-info] {
-    height: 36px;
-    margin-block: 10px;
+    height: 32px;
+    margin-block: 0;
     background: var(--diffs-bg);
   }
 
   [data-separator=line-info][data-separator-first] {
-    margin-top: 10px;
+    margin-top: 0;
   }
 
   [data-separator=line-info][data-separator-last] {
-    margin-bottom: 10px;
+    margin-bottom: 0;
   }
 
   [data-separator=line-info] [data-separator-wrapper] {
     min-width: 0;
-    padding-inline: 12px;
+    padding-inline: 0;
     background: transparent;
   }
 
   [data-separator=line-info][data-expand-index] [data-separator-wrapper] {
-    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-columns: 3.25rem max-content;
   }
 
   [data-separator=line-info] [data-expand-button],
   [data-separator=line-info] [data-separator-content] {
-    background: #020617;
-    border-block: 1px solid #1f2937;
+    background: transparent;
+    border: 0;
   }
 
   [data-separator=line-info] [data-expand-button] {
-    min-width: 34px;
-    color: #94a3b8;
-    border-left: 1px solid #1f2937;
-    border-right: 0;
-    border-radius: 8px 0 0 8px;
+    min-width: 3.25rem;
+    color: #a1a1aa;
+    border-radius: 0;
   }
 
   [data-separator=line-info] [data-expand-button]:hover {
-    color: #e5e7eb;
-    background: #0f172a;
+    color: #d4d4d8;
+    background: transparent;
   }
 
   [data-separator=line-info] [data-separator-content] {
     gap: 8px;
-    color: #f8fafc;
-    border-right: 1px solid #1f2937;
-    border-radius: 0 8px 8px 0;
-    font-size: 12px;
-    font-weight: 500;
-    justify-content: center;
+    color: #a1a1aa;
+    border-radius: 0;
+    font-size: 13px;
+    font-weight: 400;
+    justify-content: flex-start;
     letter-spacing: 0;
-    padding-inline: 12px;
+    min-width: max-content;
+    padding-inline: 0;
+    overflow: visible;
   }
 
   [data-separator=line-info] [data-separator-content]:hover {
-    background: #0f172a;
+    background: transparent;
     text-decoration: none;
   }
 
   [data-separator=line-info] [data-unmodified-lines] {
-    color: #f8fafc;
-    text-decoration: underline;
-    text-decoration-color: rgb(148 163 184 / 0.8);
-    text-underline-offset: 3px;
+    color: #a1a1aa;
+    text-decoration: none;
+    overflow: visible;
   }
 
   [data-separator=line-info] [data-separator-content]::after {
-    color: #94a3b8;
+    color: #a1a1aa;
     content: "\\2022  expand all";
     flex: 0 0 auto;
     font-weight: 400;
   }
 
   [data-separator=line-info] [data-icon] {
-    width: 14px;
-    height: 14px;
+    width: 13px;
+    height: 13px;
   }
 `;
 
