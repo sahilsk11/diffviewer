@@ -233,4 +233,64 @@ describe('HomePage', () => {
       );
     });
   });
+
+  it('maps arrow keys to review navigation actions', async () => {
+    const fetchMock = setupTwoFileFetch();
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+
+    renderWithProviders(<App />);
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('first-right-content');
+    });
+
+    await user.keyboard('{ArrowRight}');
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/repos/OWNER/REPO/pulls/123/files/state',
+        expect.objectContaining({
+          body: JSON.stringify({ path: 'src/first.ts', state: 'skipped' }),
+          method: 'PUT',
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('second-right-content');
+    });
+
+    await user.keyboard('{ArrowLeft}');
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('first-right-content');
+    });
+
+    await user.keyboard('{ArrowUp}');
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/repos/OWNER/REPO/pulls/123/files/state',
+        expect.objectContaining({
+          body: JSON.stringify({ path: 'src/first.ts', state: 'approved' }),
+          method: 'PUT',
+        }),
+      );
+    });
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('second-right-content');
+    });
+
+    await user.keyboard('{ArrowDown}');
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/repos/OWNER/REPO/pulls/123/files/state',
+        expect.objectContaining({
+          body: JSON.stringify({ path: 'src/second.ts', state: 'flagged' }),
+          method: 'PUT',
+        }),
+      );
+    });
+  });
 });
