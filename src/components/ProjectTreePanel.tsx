@@ -122,7 +122,10 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
       className="flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-border bg-card"
       aria-label="Project tree"
     >
-      <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background px-3">
+      <div className="grid h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border bg-background px-4">
+        <div className="min-w-0 truncate text-sm font-semibold text-foreground">
+          {pullRequestLabel}
+        </div>
         <Button
           variant="ghost"
           size="sm"
@@ -132,13 +135,66 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
         >
           <PanelLeftClose className="size-4" />
         </Button>
+      </div>
+      <div className="flex shrink-0 items-center px-3 py-2">
+        <ToggleGroup
+          type="single"
+          value={mode}
+          variant="ghost"
+          size="sm"
+          onValueChange={(value) => {
+            if (value === 'modified' || value === 'full') setMode(value);
+          }}
+          aria-label="Tree scope"
+          className="grid w-full grid-cols-2 rounded-md border border-border bg-background p-0.5"
+        >
+          <ToggleGroupItem
+            value="modified"
+            className="h-7 rounded-sm border-0 px-3 text-xs data-[state=on]:bg-elevated data-[state=on]:text-foreground"
+          >
+            Modified
+          </ToggleGroupItem>
+          <ToggleGroupItem
+            value="full"
+            disabled={pullRequest === null}
+            className="h-7 rounded-sm border-0 px-3 text-xs data-[state=on]:bg-elevated data-[state=on]:text-foreground"
+          >
+            Full
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
+      <FileTree
+        model={model}
+        className="min-h-0 flex-1"
+        style={
+          {
+            height: '100%',
+            '--trees-bg-override': 'var(--color-card)',
+            '--trees-border-color-override': 'var(--color-border)',
+            '--trees-fg-override': 'var(--color-foreground)',
+            '--trees-fg-muted-override': 'var(--color-muted-foreground)',
+            '--trees-selected-bg-override':
+              'color-mix(in srgb, var(--color-accent) 18%, transparent)',
+            '--trees-selected-fg-override': 'var(--color-foreground)',
+            '--trees-focus-ring-color-override': 'var(--color-accent)',
+            '--trees-font-family-override': 'var(--font-sans)',
+            '--trees-font-size-override': '13px',
+          } as CSSProperties
+        }
+      />
+      <div className="shrink-0 border-t border-border bg-background px-3 py-3">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" aria-label="Diff settings" className="shrink-0">
+            <Button
+              variant="ghost"
+              className="h-10 w-full justify-start gap-3 px-3 text-sm font-normal"
+              aria-label="Diff settings"
+            >
               <Settings className="size-4" />
+              Settings
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-72">
+          <DropdownMenuContent align="start" side="top" className="w-72">
             <DropdownMenuLabel>Layout</DropdownMenuLabel>
             <div className="px-1 pb-2">
               <ToggleGroup
@@ -195,56 +251,7 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
             </DropdownMenuCheckboxItem>
           </DropdownMenuContent>
         </DropdownMenu>
-        <div className="min-w-0 truncate text-sm font-semibold text-foreground">
-          {pullRequestLabel}
-        </div>
       </div>
-      <div className="flex shrink-0 items-center px-3 py-2">
-        <ToggleGroup
-          type="single"
-          value={mode}
-          variant="ghost"
-          size="sm"
-          onValueChange={(value) => {
-            if (value === 'modified' || value === 'full') setMode(value);
-          }}
-          aria-label="Tree scope"
-          className="grid w-full grid-cols-2 rounded-md border border-border bg-background p-0.5"
-        >
-          <ToggleGroupItem
-            value="modified"
-            className="h-7 rounded-sm border-0 px-3 text-xs data-[state=on]:bg-elevated data-[state=on]:text-foreground"
-          >
-            Modified
-          </ToggleGroupItem>
-          <ToggleGroupItem
-            value="full"
-            disabled={pullRequest === null}
-            className="h-7 rounded-sm border-0 px-3 text-xs data-[state=on]:bg-elevated data-[state=on]:text-foreground"
-          >
-            Full
-          </ToggleGroupItem>
-        </ToggleGroup>
-      </div>
-      <FileTree
-        model={model}
-        className="min-h-0 flex-1"
-        style={
-          {
-            height: '100%',
-            '--trees-bg-override': 'var(--color-card)',
-            '--trees-border-color-override': 'var(--color-border)',
-            '--trees-fg-override': 'var(--color-foreground)',
-            '--trees-fg-muted-override': 'var(--color-muted-foreground)',
-            '--trees-selected-bg-override':
-              'color-mix(in srgb, var(--color-accent) 18%, transparent)',
-            '--trees-selected-fg-override': 'var(--color-foreground)',
-            '--trees-focus-ring-color-override': 'var(--color-accent)',
-            '--trees-font-family-override': 'var(--font-sans)',
-            '--trees-font-size-override': '13px',
-          } as CSSProperties
-        }
-      />
     </aside>
   );
 });

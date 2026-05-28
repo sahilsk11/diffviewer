@@ -583,14 +583,8 @@ export function HomePage(): React.ReactNode {
   }
 
   return (
-    <section className="grid min-h-screen w-full grid-rows-[auto_minmax(0,1fr)] gap-4 px-4 pb-28 pt-8 sm:px-6">
-      {formError !== null ? (
-        <p className="text-sm text-danger" role="alert">
-          {formError}
-        </p>
-      ) : null}
-
-      <div className="grid min-h-8 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+    <section className="grid min-h-screen w-full grid-rows-[3.5rem_minmax(0,1fr)] pb-28">
+      <div className="grid h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 sm:px-6">
         {loadPullRequest.isPending && pullRequest === null ? (
           <div className="min-w-0 space-y-2">
             <Skeleton className="h-5 w-full max-w-lg" />
@@ -606,42 +600,50 @@ export function HomePage(): React.ReactNode {
         </span>
       </div>
 
-      {actionError !== null ? (
-        <p className="text-sm text-danger" role="alert">
-          {actionError}
-        </p>
-      ) : null}
+      <div className="flex min-h-0 flex-col gap-4 px-4 sm:px-6">
+        {formError !== null ? (
+          <p className="text-sm text-danger" role="alert">
+            {formError}
+          </p>
+        ) : null}
 
-      <div
-        className="min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
-        aria-label="Pull request diff"
-      >
-        {pullRequest === null ? (
-          loadPullRequest.isPending ? (
-            <DiffLoadingState label="Loading pull request" />
-          ) : (
-            <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
-              No pull request loaded
+        {actionError !== null ? (
+          <p className="text-sm text-danger" role="alert">
+            {actionError}
+          </p>
+        ) : null}
+
+        <div
+          className="min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
+          aria-label="Pull request diff"
+        >
+          {pullRequest === null ? (
+            loadPullRequest.isPending ? (
+              <DiffLoadingState label="Loading pull request" />
+            ) : (
+              <div className="flex h-full items-center justify-center px-6 text-sm text-muted-foreground">
+                No pull request loaded
+              </div>
+            )
+          ) : contentQuery.isError ? (
+            <div className="flex h-full items-center justify-center px-6 text-sm text-danger">
+              {errorText(contentQuery.error)}
             </div>
-          )
-        ) : contentQuery.isError ? (
-          <div className="flex h-full items-center justify-center px-6 text-sm text-danger">
-            {errorText(contentQuery.error)}
-          </div>
-        ) : contentQuery.isLoading || currentChange === null ? (
-          <DiffLoadingState label="Loading diff" />
-        ) : (
-          <Virtualizer key={currentChange.id} className="h-full" contentClassName="min-w-full">
-            <MultiFileDiff
-              oldFile={currentChange.oldFile}
-              newFile={currentChange.newFile}
-              options={options}
-              lineAnnotations={comments}
-              selectedLines={selectedLines}
-              renderAnnotation={renderAnnotation}
-            />
-          </Virtualizer>
-        )}
+          ) : contentQuery.isLoading || currentChange === null ? (
+            <DiffLoadingState label="Loading diff" />
+          ) : (
+            <Virtualizer key={currentChange.id} className="h-full" contentClassName="min-w-full">
+              <MultiFileDiff
+                oldFile={currentChange.oldFile}
+                newFile={currentChange.newFile}
+                options={options}
+                lineAnnotations={comments}
+                selectedLines={selectedLines}
+                renderAnnotation={renderAnnotation}
+              />
+            </Virtualizer>
+          )}
+        </div>
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background/90 px-4 py-4 shadow-2xl shadow-black/40 backdrop-blur lg:left-[var(--review-sidebar-width)] lg:right-0">
