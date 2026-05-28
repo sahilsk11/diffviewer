@@ -91,3 +91,156 @@
 :root {
   color-scheme: dark;
 }
+
+.diff-file-transition-surface {
+  contain: layout paint;
+  view-transition-name: diff-file;
+}
+
+.diff-actions-transition-surface {
+  view-transition-name: diff-actions;
+}
+
+html[data-diff-transition]::view-transition-old(root),
+html[data-diff-transition]::view-transition-new(root) {
+  animation: none;
+}
+
+::view-transition-group(diff-file) {
+  animation-duration: 240ms;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  overflow: clip;
+}
+
+::view-transition-group(diff-actions) {
+  z-index: 20;
+}
+
+::view-transition-image-pair(diff-file) {
+  isolation: isolate;
+}
+
+html[data-diff-transition='approve']::view-transition-old(diff-file) {
+  animation: diff-file-slide-up 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  z-index: 2;
+}
+
+html[data-diff-transition='approve']::view-transition-new(diff-file),
+html[data-diff-transition='flag']::view-transition-new(diff-file) {
+  animation: diff-file-arrive 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  z-index: 1;
+}
+
+html[data-diff-transition='flag']::view-transition-old(diff-file) {
+  animation: diff-file-slide-down 720ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  z-index: 2;
+}
+
+html[data-diff-transition='skip']::view-transition-old(diff-file),
+html[data-diff-transition='previous']::view-transition-old(diff-file) {
+  animation: diff-file-hold 240ms linear both;
+  z-index: 1;
+}
+
+html[data-diff-transition='skip']::view-transition-new(diff-file) {
+  animation: diff-file-slide-from-right 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  z-index: 2;
+}
+
+html[data-diff-transition='previous']::view-transition-new(diff-file) {
+  animation: diff-file-slide-from-left 240ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  z-index: 2;
+}
+
+html[data-diff-transition='approve']::view-transition-old(diff-actions),
+html[data-diff-transition='approve']::view-transition-new(diff-actions),
+html[data-diff-transition='flag']::view-transition-old(diff-actions),
+html[data-diff-transition='flag']::view-transition-new(diff-actions) {
+  animation: diff-file-hold 720ms linear both;
+}
+
+html[data-diff-transition='skip']::view-transition-old(diff-actions),
+html[data-diff-transition='skip']::view-transition-new(diff-actions),
+html[data-diff-transition='previous']::view-transition-old(diff-actions),
+html[data-diff-transition='previous']::view-transition-new(diff-actions) {
+  animation: diff-file-hold 240ms linear both;
+}
+
+@keyframes diff-file-hold {
+  from,
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes diff-file-arrive {
+  from {
+    opacity: 0.98;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes diff-file-slide-up {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -38%, 0);
+  }
+}
+
+@keyframes diff-file-slide-down {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 38%, 0);
+  }
+}
+
+@keyframes diff-file-slide-from-right {
+  from {
+    opacity: 1;
+    transform: translate3d(100%, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes diff-file-slide-from-left {
+  from {
+    opacity: 1;
+    transform: translate3d(-100%, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .diff-file-transition-surface,
+  .diff-actions-transition-surface {
+    view-transition-name: none;
+  }
+
+  ::view-transition-group(diff-file),
+  ::view-transition-old(diff-file),
+  ::view-transition-new(diff-file),
+  ::view-transition-group(diff-actions),
+  ::view-transition-old(diff-actions),
+  ::view-transition-new(diff-actions) {
+    animation: none;
+  }
+}
