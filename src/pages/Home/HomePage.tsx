@@ -14,10 +14,13 @@ import {
   ExternalLink,
   Flag,
   LoaderCircle,
+  PanelLeftOpen,
   SkipForward,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useOutletContext } from 'react-router';
 
+import { type ReviewLayoutContext } from '@/components/layout/RootLayout';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
@@ -242,6 +245,7 @@ function readInitialPullRequestLoad(): InitialPullRequestLoad {
 }
 
 export function HomePage(): React.ReactNode {
+  const { isSidebarOpen, showSidebar } = useOutletContext<ReviewLayoutContext>();
   const { diffIndicators, layout, lineDiffType, showLineNumbers, wrapLines } = useDiffSettings();
   const { pullRequest, selectedPath, setPullRequest, setSelectedPath } = useReviewSession();
   const queryClient = useQueryClient();
@@ -585,16 +589,29 @@ export function HomePage(): React.ReactNode {
   return (
     <section className="grid min-h-screen w-full grid-rows-[3.5rem_minmax(0,1fr)] pb-28">
       <div className="grid h-14 w-full grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 sm:px-6">
-        {loadPullRequest.isPending && pullRequest === null ? (
-          <div className="min-w-0 space-y-2">
-            <Skeleton className="h-5 w-full max-w-lg" />
-            <Skeleton className="h-3 w-56" />
-          </div>
-        ) : (
-          <h1 className="min-w-0 truncate text-base font-semibold leading-8 text-foreground">
-            {pullRequest?.title ?? 'No pull request loaded'}
-          </h1>
-        )}
+        <div className="flex min-w-0 items-center gap-2">
+          {!isSidebarOpen ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              aria-label="Show sidebar"
+              className="shrink-0"
+              onClick={showSidebar}
+            >
+              <PanelLeftOpen className="size-4" />
+            </Button>
+          ) : null}
+          {loadPullRequest.isPending && pullRequest === null ? (
+            <div className="min-w-0 space-y-2">
+              <Skeleton className="h-5 w-full max-w-lg" />
+              <Skeleton className="h-3 w-56" />
+            </div>
+          ) : (
+            <h1 className="min-w-0 truncate text-base font-semibold leading-8 text-foreground">
+              {pullRequest?.title ?? 'No pull request loaded'}
+            </h1>
+          )}
+        </div>
         <span className="flex h-8 shrink-0 items-center rounded-md border border-border bg-elevated px-2.5 text-xs font-medium leading-none text-muted-foreground">
           {files.length === 0 ? '0 / 0' : `${currentIndex + 1} / ${files.length}`}
         </span>
