@@ -1,9 +1,28 @@
 import { screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import App from './App';
 import { renderWithProviders } from '@/test/render';
+
+const originalMatchMedia = window.matchMedia;
+
+function stubDesktopBreakpoint(matches: boolean): void {
+  window.matchMedia = vi.fn((query: string) => ({
+    matches,
+    media: query,
+    onchange: null,
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  }));
+}
+
+afterEach(() => {
+  window.matchMedia = originalMatchMedia;
+});
 
 describe('App', () => {
   it('renders the landing page at the root route', () => {
@@ -32,5 +51,23 @@ describe('App', () => {
     await user.click(screen.getByRole('button', { name: 'Diff settings' }));
 
     expect(screen.getByRole('radio', { name: 'Split' })).toHaveAttribute('aria-checked', 'true');
+  });
+
+  it('starts the sidebar closed below the desktop breakpoint', () => {
+    stubDesktopBreakpoint(false);
+
+    renderWithProviders(<App />);
+
+    expect(screen.getByRole('button', { name: 'Show sidebar' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Hide sidebar' })).not.toBeInTheDocument();
+  });
+
+  it('starts the sidebar open at the desktop breakpoint', () => {
+    stubDesktopBreakpoint(true);
+
+    renderWithProviders(<App />);
+
+    expect(screen.getByRole('button', { name: 'Hide sidebar' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Show sidebar' })).not.toBeInTheDocument();
   });
 });

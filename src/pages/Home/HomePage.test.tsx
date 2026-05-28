@@ -509,7 +509,7 @@ describe('HomePage', () => {
   it('focuses the draft comment box after clicking a diff line', async () => {
     setupFetch();
     const user = userEvent.setup();
-    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 

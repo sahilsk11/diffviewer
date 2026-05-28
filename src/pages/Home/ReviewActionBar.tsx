@@ -33,7 +33,7 @@ export function ReviewActionBar({
           <ChevronLeft className="size-4 shrink-0" />
           Prev
           <kbd className="rounded bg-elevated px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
-            Z / Left
+            Z
           </kbd>
         </Button>
         <Button
@@ -44,9 +44,7 @@ export function ReviewActionBar({
         >
           <Flag className="size-4 shrink-0" />
           Flag
-          <kbd className="rounded bg-danger/15 px-1.5 py-0.5 font-mono text-xs text-danger">
-            X / Down
-          </kbd>
+          <kbd className="rounded bg-danger/15 px-1.5 py-0.5 font-mono text-xs text-danger">X</kbd>
         </Button>
         <Button
           variant="outline"
@@ -57,7 +55,7 @@ export function ReviewActionBar({
           <CircleCheckBig className="size-4 shrink-0" />
           Approve
           <kbd className="rounded bg-success/15 px-1.5 py-0.5 font-mono text-xs text-success">
-            A / Up
+            A
           </kbd>
         </Button>
         <Button
@@ -68,9 +66,7 @@ export function ReviewActionBar({
         >
           <SkipForward className="size-4 shrink-0" />
           Skip
-          <kbd className="rounded bg-warn/15 px-1.5 py-0.5 font-mono text-xs text-warn">
-            S / Right
-          </kbd>
+          <kbd className="rounded bg-warn/15 px-1.5 py-0.5 font-mono text-xs text-warn">S</kbd>
         </Button>
       </div>
     </div>
