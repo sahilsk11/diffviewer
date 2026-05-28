@@ -187,7 +187,7 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
-              className="h-10 w-full justify-start gap-3 px-3 text-sm font-normal"
+              className="h-8 w-full justify-start gap-3 px-3 text-sm font-normal"
               aria-label="Diff settings"
             >
               <Settings className="size-4" />
