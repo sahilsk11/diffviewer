@@ -30,6 +30,7 @@ Before you write something new:
 - Search the repo for existing helpers, patterns, abstractions that solve the same shape of problem.
 - Look at sibling templates here (`frontend/`, `go-backend/`, `python-backend/`) and the source repos they were distilled from (`~/Projects/factorbacktest`, `~/Projects/holocron`, `~/Projects/friday`) — patterns we've already validated.
 - If you see the same logic appearing in two places, extract it. Three is a hard limit, not a target.
+- If lint flags a file for exceeding 700 lines, break it up by extracting coherent components into their own files. Do not shave individual lines just to satisfy the check.
 - Naming, file layout, error handling, logging — match what's already there unless you have a reason to deviate. Then say the reason.
 
 A duplicate utility is technical debt the moment it's committed.
