@@ -11,9 +11,14 @@ export interface ReviewLayoutContext {
   showSidebar: () => void;
 }
 
+function shouldStartWithSidebarOpen(): boolean {
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true;
+  return window.matchMedia('(min-width: 1024px)').matches;
+}
+
 // Page shell wrapping every route. Top nav + main content area.
 export function RootLayout(): React.ReactNode {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(shouldStartWithSidebarOpen);
 
   return (
     <DiffSettingsProvider>
@@ -32,12 +37,13 @@ export function RootLayout(): React.ReactNode {
             <div
               className={
                 isSidebarOpen
-                  ? 'min-h-[22rem] overflow-hidden transition-opacity duration-150 ease-out lg:h-screen lg:min-h-0'
-                  : 'hidden min-h-[22rem] overflow-hidden opacity-0 transition-opacity duration-150 ease-out lg:block lg:h-screen lg:min-h-0'
+                  ? 'fixed inset-y-0 left-0 z-40 w-[min(21rem,100vw)] overflow-hidden transition-transform duration-200 ease-out lg:static lg:z-auto lg:h-screen lg:w-auto lg:transition-opacity'
+                  : 'fixed inset-y-0 left-0 z-40 w-[min(21rem,100vw)] -translate-x-full overflow-hidden opacity-0 transition-transform duration-200 ease-out lg:static lg:z-auto lg:block lg:h-screen lg:w-auto lg:translate-x-0 lg:transition-opacity'
               }
               aria-hidden={!isSidebarOpen}
+              inert={!isSidebarOpen ? true : undefined}
             >
-              <div className="h-full min-w-[21rem]">
+              <div className="h-full w-full min-w-0 lg:min-w-[21rem]">
                 <ProjectTreePanel onCollapse={() => setIsSidebarOpen(false)} />
               </div>
             </div>

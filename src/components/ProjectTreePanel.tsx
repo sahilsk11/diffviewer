@@ -122,15 +122,15 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
       className="flex h-full min-h-0 w-full flex-col overflow-hidden border-r border-border bg-card"
       aria-label="Project tree"
     >
-      <div className="grid h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border bg-background px-4">
-        <div className="min-w-0 truncate text-sm font-semibold text-foreground">
+      <div className="grid h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border bg-background px-3">
+        <div className="min-w-0 truncate pl-1 text-sm font-semibold text-foreground">
           {pullRequestLabel}
         </div>
         <Button
           variant="ghost"
           size="sm"
           aria-label="Hide sidebar"
-          className="shrink-0"
+          className="w-8 shrink-0 cursor-pointer px-0 hover:bg-transparent"
           onClick={onCollapse}
         >
           <PanelLeftClose className="size-4" />
