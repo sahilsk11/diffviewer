@@ -1,4 +1,4 @@
-import type { FileDiffMetadata } from '@pierre/diffs/react';
+import type { FileContents, FileDiffMetadata } from '@pierre/diffs/react';
 import { ArrowRight } from 'lucide-react';
 
 import { ReviewStatusChip } from '@/components/ReviewStatusChip';
@@ -47,6 +47,17 @@ export function DiffFileHeader({ fileDiff, reviewState }: DiffFileHeaderProps): 
           <span className="text-success">+{additions}</span>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+export function FileViewHeader({ file }: { file: FileContents }): React.ReactNode {
+  return (
+    <div className="flex min-h-11 items-center gap-2 bg-background px-4 font-sans">
+      <span className="size-3 shrink-0 rounded-[3px] border-2 border-accent" aria-hidden />
+      <span className="min-w-0 truncate text-sm font-medium text-foreground">
+        <bdi>{file.name}</bdi>
+      </span>
     </div>
   );
 }

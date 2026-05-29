@@ -1,12 +1,15 @@
+import { getFiletypeFromFileName, preloadHighlighter } from '@pierre/diffs';
 import {
   type DiffLineAnnotation,
   type FileContents as DiffFileContents,
   type FileDiffMetadata,
   type SelectedLineRange,
+  type SupportedLanguages,
+  File,
   MultiFileDiff,
   Virtualizer,
 } from '@pierre/diffs/react';
-import { type RefObject } from 'react';
+import { type RefObject, useEffect, useMemo, useState } from 'react';
 
 import { DiffLineActionBar } from '@/pages/Home/DiffLineActionBar';
 import { DiffLoadingState } from '@/pages/Home/DiffLoadingState';
@@ -19,6 +22,7 @@ interface ReviewDiffPanelProps<LAnnotation> {
   contentError: string | null;
   currentChange: {
     id: string;
+    isReviewable: boolean;
     newFile: DiffFileContents;
     oldFile: DiffFileContents;
   } | null;
@@ -33,6 +37,7 @@ interface ReviewDiffPanelProps<LAnnotation> {
   panelRef: RefObject<HTMLDivElement | null>;
   renderAnnotation: (annotation: DiffLineAnnotation<LAnnotation>) => React.ReactNode;
   renderCustomHeader: (fileDiff: FileDiffMetadata) => React.ReactNode;
+  renderFileHeader: (file: DiffFileContents) => React.ReactNode;
   selectedLines: SelectedLineRange | null;
   showLineAction: boolean;
   showReviewComplete: boolean;
@@ -55,17 +60,49 @@ export function ReviewDiffPanel<LAnnotation>({
   panelRef,
   renderAnnotation,
   renderCustomHeader,
+  renderFileHeader,
   selectedLines,
   showLineAction,
   showReviewComplete,
 }: ReviewDiffPanelProps<LAnnotation>): React.ReactNode {
+  const [fileHighlightVersion, setFileHighlightVersion] = useState(0);
+  const fileLanguage = useMemo(() => {
+    if (currentChange === null || currentChange.isReviewable) return null;
+    return (currentChange.newFile.lang ??
+      getFiletypeFromFileName(currentChange.newFile.name)) as SupportedLanguages;
+  }, [currentChange]);
+  const fileOptions =
+    currentChange?.isReviewable === false
+      ? {
+          ...options,
+          controlledSelection: false,
+          enableLineSelection: false,
+          onLineClick: undefined,
+          onLineSelected: undefined,
+        }
+      : options;
+  const canShowLineAction = showLineAction && currentChange?.isReviewable === true;
+
+  useEffect(() => {
+    if (fileLanguage === null) return;
+
+    let ignore = false;
+    void preloadHighlighter({ langs: [fileLanguage], themes: ['pierre-dark'] }).then(() => {
+      if (!ignore) setFileHighlightVersion((version) => version + 1);
+    });
+
+    return () => {
+      ignore = true;
+    };
+  }, [currentChange?.id, fileLanguage]);
+
   return (
     <div
       ref={panelRef}
-      className="diff-file-transition-surface relative min-h-[28rem] flex-1 overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30"
+      className="diff-file-transition-surface relative min-h-[28rem] flex-1 overflow-hidden"
       aria-label="Pull request diff"
     >
-      {showLineAction ? (
+      {canShowLineAction ? (
         <DiffLineActionBar
           left={actionLeft}
           top={actionTop}
@@ -90,7 +127,7 @@ export function ReviewDiffPanel<LAnnotation>({
         </div>
       ) : isContentLoading || currentChange === null ? (
         <DiffLoadingState label="Loading diff" />
-      ) : (
+      ) : currentChange.isReviewable ? (
         <Virtualizer key={currentChange.id} className="h-full" contentClassName="min-w-full">
           <MultiFileDiff
             oldFile={currentChange.oldFile}
@@ -100,6 +137,18 @@ export function ReviewDiffPanel<LAnnotation>({
             selectedLines={selectedLines}
             renderAnnotation={renderAnnotation}
             renderCustomHeader={renderCustomHeader}
+          />
+        </Virtualizer>
+      ) : (
+        <Virtualizer
+          key={`${currentChange.id}:${fileHighlightVersion}`}
+          className="h-full overflow-auto"
+          contentClassName="min-w-full"
+        >
+          <File
+            file={currentChange.newFile}
+            options={fileOptions}
+            renderCustomHeader={renderFileHeader}
           />
         </Virtualizer>
       )}

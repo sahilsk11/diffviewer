@@ -1,8 +1,10 @@
+import base64
+
 import httpx
 import pytest
 import respx
 
-from diffviewer_api.services.github_client import GitHubClient, GitHubError
+from diffviewer_api.services.github_client import GitHubClient, GitHubError, decode_blob_contents
 
 
 @pytest.mark.asyncio
@@ -60,3 +62,17 @@ async def test_github_validation_error_is_normalized() -> None:
     assert error_info.value.status_code == 422
     assert error_info.value.code == "github_validation_error"
     assert error_info.value.message == "Validation Failed"
+
+
+def test_decode_blob_contents_rejects_binary_blob() -> None:
+    payload = {
+        "encoding": "base64",
+        "content": base64.b64encode(b"\xff\x00PNG").decode("ascii"),
+    }
+
+    with pytest.raises(GitHubError) as error_info:
+        decode_blob_contents(payload)
+
+    assert error_info.value.status_code == 415
+    assert error_info.value.code == "unsupported_binary_file"
+    assert error_info.value.message == "Binary files cannot be previewed."

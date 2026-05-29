@@ -39,6 +39,19 @@ function toGitStatus(status: string): GitStatus {
   return 'modified';
 }
 
+function directoryPathsFor(filePaths: readonly string[]): string[] {
+  const directoryPaths = new Set<string>();
+
+  for (const filePath of filePaths) {
+    const segments = filePath.split('/');
+    for (let index = 1; index < segments.length; index += 1) {
+      directoryPaths.add(segments.slice(0, index).join('/'));
+    }
+  }
+
+  return [...directoryPaths].sort((left, right) => right.length - left.length);
+}
+
 export const ProjectTreePanel = memo(function ProjectTreePanel({
   onCollapse,
 }: ProjectTreePanelProps): React.ReactNode {
@@ -87,6 +100,7 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
     [treeQuery.data?.entries],
   );
   const paths = mode === 'full' && fullPaths !== undefined ? fullPaths : modifiedPaths;
+  const directoryPaths = useMemo(() => directoryPathsFor(paths), [paths]);
   const gitStatus = useMemo<GitStatusEntry[]>(
     () =>
       pullRequest?.files.map((file) => ({
@@ -114,7 +128,7 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
     flattenEmptyDirectories: true,
     gitStatus,
     icons: { colored: true, set: 'complete', spriteSheet: reviewStatusTreeSprite },
-    initialExpansion: 2,
+    initialExpansion: 'open',
     initialSelectedPaths: selectedPath === null ? undefined : [selectedPath],
     onSelectionChange: (selectedPaths) => {
       const filePaths = selectedPaths.filter((path) => !path.endsWith('/'));
@@ -192,16 +206,27 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
   });
 
   useEffect(() => {
-    model.resetPaths(paths, { initialExpandedPaths: mode === 'modified' ? ['src'] : undefined });
-    model.setGitStatus(gitStatus);
-    if (selectedPath !== null && paths.includes(selectedPath)) {
-      for (const path of model.getSelectedPaths()) {
-        if (path !== selectedPath) model.getItem(path)?.deselect();
+    model.resetPaths(paths, mode === 'full' ? { initialExpandedPaths: [] } : undefined);
+    if (mode === 'full') {
+      for (const directoryPath of directoryPaths) {
+        const item = model.getItem(directoryPath);
+        if (item !== null && 'collapse' in item) item.collapse();
       }
-      model.getItem(selectedPath)?.select();
-      model.scrollToPath(selectedPath, { offset: 'nearest' });
     }
-  }, [gitStatus, mode, model, paths, selectedPath]);
+    model.setGitStatus(gitStatus);
+    if (selectedPath === null || !paths.includes(selectedPath)) {
+      for (const path of model.getSelectedPaths()) {
+        model.getItem(path)?.deselect();
+      }
+      return;
+    }
+
+    for (const path of model.getSelectedPaths()) {
+      if (path !== selectedPath) model.getItem(path)?.deselect();
+    }
+    model.getItem(selectedPath)?.select();
+    model.scrollToPath(selectedPath, { offset: 'nearest' });
+  }, [directoryPaths, gitStatus, mode, model, paths, selectedPath]);
 
   useEffect(() => {
     model.setGitStatus(gitStatus);

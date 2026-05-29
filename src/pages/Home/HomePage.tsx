@@ -1,6 +1,5 @@
 import {
   type AnnotationSide,
-  type FileContents as DiffFileContents,
   type SelectedLineRange,
   type SelectionSide,
 } from '@pierre/diffs/react';
@@ -21,7 +20,8 @@ import {
   type CommentAnnotation,
   type CommentMetadata,
 } from '@/pages/Home/CommentAnnotationCard';
-import { DiffFileHeader } from '@/pages/Home/DiffFileHeader';
+import { DiffFileHeader, FileViewHeader } from '@/pages/Home/DiffFileHeader';
+import { resolveCurrentFileSelection } from '@/pages/Home/file-selection';
 import { FileInsightsPanel, type InsightsPanelTab } from '@/pages/Home/FileInsightsPanel';
 import { hunkSeparatorCSS } from '@/pages/Home/hunk-separator-css';
 import {
@@ -32,13 +32,6 @@ import {
 import { ReviewActionBar } from '@/pages/Home/ReviewActionBar';
 import { ReviewDiffPanel } from '@/pages/Home/ReviewDiffPanel';
 import { ReviewHeader } from '@/pages/Home/ReviewHeader';
-
-interface FileChange {
-  id: string;
-  file: PullRequestFile;
-  newFile: DiffFileContents;
-  oldFile: DiffFileContents;
-}
 
 type DiffTransitionIntent = 'approve' | 'flag' | 'previous' | 'skip';
 
@@ -145,10 +138,7 @@ function fileContentsQueryKey(pullRequest: PullRequestDetails, path: string): Qu
   ];
 }
 
-async function readFileChange(
-  pullRequest: PullRequestDetails,
-  file: PullRequestFile,
-): Promise<FileChange> {
+async function readFileChange(pullRequest: PullRequestDetails, file: PullRequestFile) {
   const [oldContents, newContents] = await Promise.all([
     readContents(pullRequest, file.path, 'LEFT'),
     readContents(pullRequest, file.path, 'RIGHT'),
@@ -156,7 +146,7 @@ async function readFileChange(
 
   return {
     id: file.path,
-    file,
+    isReviewable: file.status !== 'unchanged',
     oldFile: { name: file.path, contents: oldContents },
     newFile: { name: file.path, contents: newContents },
   };
@@ -223,12 +213,10 @@ export function HomePage(): React.ReactNode {
     [pullRequest],
   );
   const showReviewComplete = pullRequest !== null && files.length > 0 && isReviewComplete;
-  const currentIndex = useMemo(() => {
-    if (showReviewComplete) return files.length;
-    const selectedIndex = files.findIndex((file) => file.path === selectedPath);
-    return selectedIndex >= 0 ? selectedIndex : 0;
-  }, [files, selectedPath, showReviewComplete]);
-  const currentFile = files[currentIndex] ?? null;
+  const { canReviewCurrent, currentFile, currentIndex } = useMemo(
+    () => resolveCurrentFileSelection(files, selectedPath, showReviewComplete),
+    [files, selectedPath, showReviewComplete],
+  );
 
   const loadPullRequest = useMutation({
     mutationFn: diffviewerApi.loadPullRequest,
@@ -289,7 +277,7 @@ export function HomePage(): React.ReactNode {
       pullRequest !== null && currentFile !== null
         ? fileContentsQueryKey(pullRequest, currentFile.path)
         : ['file-contents', 'empty'],
-    queryFn: async (): Promise<FileChange> => {
+    queryFn: async () => {
       if (pullRequest === null || currentFile === null) throw new Error('File is required.');
       return readFileChange(pullRequest, currentFile);
     },
@@ -315,18 +303,21 @@ export function HomePage(): React.ReactNode {
   }, [currentIndex, files, pullRequest, queryClient]);
 
   const currentChange = contentQuery.data ?? null;
-  const currentInsight = useMemo(() => getFileInsight(currentFile), [currentFile]);
+  const currentInsight = canReviewCurrent ? getFileInsight(currentFile) : null;
   const currentFilePath = currentFile?.path ?? null;
   const comments = useMemo(
     () => (currentFile === null ? [] : (commentsByFile[currentFile.path] ?? [])),
     [commentsByFile, currentFile],
   );
   const visibleCodeExplanation =
-    codeExplanation?.filePath === currentFilePath ? codeExplanation.explanation : null;
+    canReviewCurrent && codeExplanation?.filePath === currentFilePath
+      ? codeExplanation.explanation
+      : null;
   const visibleLineActionTarget =
-    lineActionTarget?.filePath === currentFilePath ? lineActionTarget : null;
+    canReviewCurrent && lineActionTarget?.filePath === currentFilePath ? lineActionTarget : null;
   const visibleSelectedLines =
-    selectedLines?.filePath === currentFilePath ? selectedLines.range : null;
+    canReviewCurrent && selectedLines?.filePath === currentFilePath ? selectedLines.range : null;
+  const isReviewableInsightsOpen = isInsightsOpen && canReviewCurrent;
 
   useEffect(() => {
     if (activeCommentId === null) return;
@@ -372,7 +363,7 @@ export function HomePage(): React.ReactNode {
 
   const markCurrent = useCallback(
     async (status: ReviewStatus): Promise<void> => {
-      if (currentFile === null) return;
+      if (!canReviewCurrent || currentFile === null) return;
       try {
         const result = await updateState.mutateAsync({ path: currentFile.path, state: status });
         setFileReviewState(result.path, result.state);
@@ -382,12 +373,12 @@ export function HomePage(): React.ReactNode {
         setActionError(errorText(error));
       }
     },
-    [currentFile, goToNext, setFileReviewState, updateState],
+    [canReviewCurrent, currentFile, goToNext, setFileReviewState, updateState],
   );
 
   const addDraftComment = useCallback(
     (target: LineActionTarget): void => {
-      if (currentFile === null) return;
+      if (!canReviewCurrent || currentFile === null) return;
       const key = annotationKey(target.side, target.lineNumber);
       setSelectedLines(
         target.rangeSelection ? { filePath: currentFile.path, range: target.range } : null,
@@ -425,11 +416,12 @@ export function HomePage(): React.ReactNode {
         };
       });
     },
-    [currentFile],
+    [canReviewCurrent, currentFile],
   );
 
   const explainTarget = useCallback(
     (target: LineActionTarget): void => {
+      if (!canReviewCurrent) return;
       setSelectedLines(
         target.rangeSelection ? { filePath: target.filePath, range: target.range } : null,
       );
@@ -441,7 +433,7 @@ export function HomePage(): React.ReactNode {
       setIsInsightsOpen(true);
       setLineActionTarget(null);
     },
-    [currentFile, currentFilePath],
+    [canReviewCurrent, currentFile, currentFilePath],
   );
 
   const readLineActionPosition = useCallback((lineElement: HTMLElement | null) => {
@@ -479,7 +471,7 @@ export function HomePage(): React.ReactNode {
       } else if (key === 'b') {
         event.preventDefault();
         toggleSidebar();
-      } else if (key === 'i' && pullRequest !== null) {
+      } else if (key === 'i' && pullRequest !== null && canReviewCurrent) {
         event.preventDefault();
         setIsInsightsOpen((isOpen) => !isOpen);
       }
@@ -488,7 +480,7 @@ export function HomePage(): React.ReactNode {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [goToPrevious, markCurrent, pullRequest, toggleSidebar]);
+  }, [canReviewCurrent, goToPrevious, markCurrent, pullRequest, toggleSidebar]);
 
   const options = useMemo(
     () => ({
@@ -500,6 +492,7 @@ export function HomePage(): React.ReactNode {
       unsafeCSS: hunkSeparatorCSS,
       lineDiffType,
       overflow: wrapLines ? ('wrap' as const) : ('scroll' as const),
+      disableBackground: true,
       disableLineNumbers: !showLineNumbers,
       stickyHeader: true,
       enableLineSelection: true,
@@ -514,6 +507,7 @@ export function HomePage(): React.ReactNode {
         lineElement: HTMLElement;
         lineNumber: number;
       }) => {
+        if (!canReviewCurrent) return;
         const side = sideToSelectionSide(annotationSide);
         const range = { start: lineNumber, side, end: lineNumber, endSide: side };
         const actionPosition = readLineActionPosition(lineElement);
@@ -541,6 +535,7 @@ export function HomePage(): React.ReactNode {
         });
       },
       onLineSelected: (range: SelectedLineRange | null) => {
+        if (!canReviewCurrent) return;
         setSelectedLines(range === null ? null : { filePath: currentFilePath, range });
         if (range === null || range.side === undefined) {
           setLineActionTarget(null);
@@ -572,6 +567,7 @@ export function HomePage(): React.ReactNode {
       },
     }),
     [
+      canReviewCurrent,
       currentFilePath,
       diffIndicators,
       layout,
@@ -681,10 +677,10 @@ export function HomePage(): React.ReactNode {
   return (
     <section className="grid min-h-screen w-full grid-rows-[3.5rem_minmax(0,1fr)] pb-24">
       <ReviewHeader
-        canShowInsights={pullRequest !== null}
+        canShowInsights={pullRequest !== null && canReviewCurrent}
         currentIndex={currentIndex}
         fileCount={files.length}
-        isInsightsOpen={isInsightsOpen}
+        isInsightsOpen={isReviewableInsightsOpen}
         isLoading={loadPullRequest.isPending && pullRequest === null}
         isReviewComplete={showReviewComplete}
         isSidebarOpen={isSidebarOpen}
@@ -695,7 +691,7 @@ export function HomePage(): React.ReactNode {
 
       <div
         className={
-          isInsightsOpen
+          isReviewableInsightsOpen
             ? 'flex min-h-0 flex-1 flex-col gap-4 px-4 transition-[padding] duration-200 ease-out sm:px-6 lg:pr-[22.5rem]'
             : 'flex min-h-0 flex-1 flex-col gap-4 px-4 transition-[padding] duration-200 ease-out sm:px-6'
         }
@@ -739,26 +735,29 @@ export function HomePage(): React.ReactNode {
                 reviewState={currentFile === null ? undefined : reviewStateByPath[currentFile.path]}
               />
             )}
+            renderFileHeader={(file) => <FileViewHeader file={file} />}
             selectedLines={visibleSelectedLines}
-            showLineAction={visibleLineActionTarget !== null}
+            showLineAction={canReviewCurrent && visibleLineActionTarget !== null}
             showReviewComplete={showReviewComplete}
           />
-          <FileInsightsPanel
-            activeTab={insightsTab}
-            explanation={visibleCodeExplanation}
-            file={currentFile}
-            insight={currentInsight}
-            isOpen={isInsightsOpen}
-            onClose={() => setIsInsightsOpen(false)}
-            onTabChange={setInsightsTab}
-          />
+          {canReviewCurrent && (
+            <FileInsightsPanel
+              activeTab={insightsTab}
+              explanation={visibleCodeExplanation}
+              file={currentFile}
+              insight={currentInsight}
+              isOpen={isReviewableInsightsOpen}
+              onClose={() => setIsInsightsOpen(false)}
+              onTabChange={setInsightsTab}
+            />
+          )}
         </div>
       </div>
 
       <ReviewActionBar
         canGoPrevious={(currentIndex !== 0 || showReviewComplete) && files.length > 0}
-        canReviewCurrent={currentFile !== null}
-        isInsightsOpen={isInsightsOpen}
+        canReviewCurrent={canReviewCurrent}
+        isInsightsOpen={isReviewableInsightsOpen}
         isUpdating={updateState.isPending}
         onApprove={() => void markCurrent('approved')}
         onFlag={() => void markCurrent('flagged')}

@@ -144,4 +144,11 @@ def decode_blob_contents(payload: Mapping[str, Any]) -> str:
             code="github_unexpected_response",
         )
     compact_content = "".join(content.splitlines())
-    return base64.b64decode(compact_content).decode("utf-8")
+    try:
+        return base64.b64decode(compact_content).decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise GitHubError(
+            "Binary files cannot be previewed.",
+            status_code=415,
+            code="unsupported_binary_file",
+        ) from exc

@@ -39,6 +39,7 @@ vi.mock('@pierre/diffs/react', async () => {
           side: MockAnnotationSide;
           start: number;
         }) => void;
+        disableBackground?: boolean;
       };
       renderAnnotation?: (annotation: MockAnnotation) => React.ReactNode;
       renderCustomHeader?: (fileDiff: {
@@ -57,7 +58,10 @@ vi.mock('@pierre/diffs/react', async () => {
       };
 
       return (
-        <div aria-label="Mock diff">
+        <div
+          aria-label="Mock diff"
+          data-disable-background={options?.disableBackground === true ? 'true' : 'false'}
+        >
           <div>{renderCustomHeader?.(fileDiff) ?? renderHeaderMetadata?.()}</div>
           <div>
             {renderedOldFile.name}: {renderedOldFile.contents}
@@ -319,6 +323,10 @@ describe('HomePage', () => {
     expect(screen.getByText('1 / 1')).toBeInTheDocument();
     expect(screen.queryByLabelText('GitHub pull request URL')).not.toBeInTheDocument();
     expect(screen.queryByText('unreviewed')).not.toBeInTheDocument();
+    expect(await screen.findByLabelText('Mock diff')).toHaveAttribute(
+      'data-disable-background',
+      'true',
+    );
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/contents?path=src%2Fexample.ts&side=RIGHT'),
