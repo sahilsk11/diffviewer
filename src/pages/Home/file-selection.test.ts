@@ -27,7 +27,7 @@ describe('resolveCurrentFileSelection', () => {
       changes: 0,
       patch: null,
     });
-    expect(result.currentIndex).toBe(0);
+    expect(result.currentIndex).toBe(-1);
     expect(result.canReviewCurrent).toBe(false);
   });
 });

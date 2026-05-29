@@ -59,7 +59,9 @@ export function ReviewHeader({
             ? '0 / 0'
             : isReviewComplete
               ? `${fileCount} / ${fileCount}`
-              : `${currentIndex + 1} / ${fileCount}`}
+              : currentIndex < 0
+                ? `- / ${fileCount}`
+                : `${currentIndex + 1} / ${fileCount}`}
         </span>
         {!isInsightsOpen ? (
           <Button

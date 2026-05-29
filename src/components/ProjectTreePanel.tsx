@@ -214,6 +214,9 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
       }
     }
     model.setGitStatus(gitStatus);
+  }, [directoryPaths, gitStatus, mode, model, paths]);
+
+  useEffect(() => {
     if (selectedPath === null || !paths.includes(selectedPath)) {
       for (const path of model.getSelectedPaths()) {
         model.getItem(path)?.deselect();
@@ -226,7 +229,7 @@ export const ProjectTreePanel = memo(function ProjectTreePanel({
     }
     model.getItem(selectedPath)?.select();
     model.scrollToPath(selectedPath, { offset: 'nearest' });
-  }, [directoryPaths, gitStatus, mode, model, paths, selectedPath]);
+  }, [model, paths, selectedPath]);
 
   useEffect(() => {
     model.setGitStatus(gitStatus);

@@ -28,7 +28,7 @@ export function resolveCurrentFileSelection(
     ? files.length
     : selectedChangedIndex >= 0
       ? selectedChangedIndex
-      : 0;
+      : -1;
   const currentFile = showReviewComplete
     ? null
     : selectedChangedIndex >= 0

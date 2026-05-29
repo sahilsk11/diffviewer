@@ -242,6 +242,7 @@ export function HomePage(): React.ReactNode {
         } else {
           const selectedIndex = files.findIndex((file) => file.path === selectedPath);
           if (selectedIndex >= 0) nextParams.set('page', String(selectedIndex + 1));
+          else nextParams.delete('page');
         }
         return nextParams;
       },
@@ -271,7 +272,7 @@ export function HomePage(): React.ReactNode {
   });
 
   useEffect(() => {
-    if (pullRequest === null) return;
+    if (pullRequest === null || !canReviewCurrent) return;
 
     for (const index of [currentIndex - 1, currentIndex + 1]) {
       const file = files[index];
@@ -284,7 +285,7 @@ export function HomePage(): React.ReactNode {
         gcTime: 30 * 60 * 1000,
       });
     }
-  }, [currentIndex, files, pullRequest, queryClient]);
+  }, [canReviewCurrent, currentIndex, files, pullRequest, queryClient]);
 
   const currentChange = contentQuery.data ?? null;
   const currentInsight = canReviewCurrent ? getFileInsight(currentFile) : null;
@@ -660,7 +661,7 @@ export function HomePage(): React.ReactNode {
     <section className="grid min-h-screen w-full grid-rows-[3.5rem_minmax(0,1fr)] pb-24">
       <ReviewHeader
         canShowInsights={pullRequest !== null && canReviewCurrent}
-        currentIndex={currentIndex}
+        currentIndex={canReviewCurrent || showReviewComplete ? currentIndex : -1}
         fileCount={files.length}
         isInsightsOpen={isReviewableInsightsOpen}
         isLoading={loadPullRequest.isPending && pullRequest === null}
@@ -741,7 +742,9 @@ export function HomePage(): React.ReactNode {
       </div>
 
       <ReviewActionBar
-        canGoPrevious={(currentIndex !== 0 || showReviewComplete) && files.length > 0}
+        canGoPrevious={
+          (showReviewComplete || (canReviewCurrent && currentIndex !== 0)) && files.length > 0
+        }
         canReviewCurrent={canReviewCurrent}
         isInsightsOpen={isReviewableInsightsOpen}
         isUpdating={updateState.isPending}
