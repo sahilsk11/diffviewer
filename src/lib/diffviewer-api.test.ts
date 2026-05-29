@@ -125,6 +125,62 @@ describe('diffviewerApi', () => {
     );
   });
 
+  it('generates file insights through the revision-scoped backend endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(mockJsonResponse({ insights: [] }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    await diffviewerApi.generateFileInsights(
+      { owner: 'OWNER', repo: 'REPO', pullNumber: 123 },
+      { baseSha: 'base_sha', headSha: 'head_sha' },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/repos/OWNER/REPO/pulls/123/insights/files',
+      expect.objectContaining({
+        body: JSON.stringify({ baseSha: 'base_sha', headSha: 'head_sha' }),
+        method: 'POST',
+      }),
+    );
+  });
+
+  it('requests code explanations through the revision-scoped backend endpoint', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        mockJsonResponse({ label: 'Added lines 1-3', selectedCode: 'new', text: 'Explained.' }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await diffviewerApi.explainCodeSelection(
+      { owner: 'OWNER', repo: 'REPO', pullNumber: 123 },
+      {
+        baseSha: 'base_sha',
+        headSha: 'head_sha',
+        path: 'src/example.ts',
+        side: 'RIGHT',
+        startLine: 1,
+        endLine: 3,
+        selectedCode: 'new',
+      },
+    );
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/repos/OWNER/REPO/pulls/123/insights/explain',
+      expect.objectContaining({
+        body: JSON.stringify({
+          baseSha: 'base_sha',
+          headSha: 'head_sha',
+          path: 'src/example.ts',
+          side: 'RIGHT',
+          startLine: 1,
+          endLine: 3,
+          selectedCode: 'new',
+        }),
+        method: 'POST',
+      }),
+    );
+  });
+
   it('explains empty gateway errors from an unavailable backend', async () => {
     vi.stubGlobal(
       'fetch',

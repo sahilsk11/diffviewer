@@ -3,9 +3,8 @@ import {
   type SelectedLineRange,
   type SelectionSide,
 } from '@pierre/diffs/react';
-import { type QueryKey, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
 import { useOutletContext, useSearchParams } from 'react-router';
 
 import { type ReviewLayoutContext } from '@/components/layout/RootLayout';
@@ -14,23 +13,23 @@ import { useDiffSettings } from '@/lib/diff-settings';
 import { diffviewerApi } from '@/lib/diffviewer-api';
 import { normalizeGitHubPullRequestUrl, parseGitHubPullRequestUrl } from '@/lib/github-pr';
 import { readStateByPath, useReviewSession } from '@/lib/review-state';
-import type { FileSide, PullRequestDetails, PullRequestFile, ReviewStatus } from '@/lib/types';
+import type { CodeExplanation, FileSide, ReviewStatus } from '@/lib/types';
 import {
   CommentAnnotationCard,
   type CommentAnnotation,
   type CommentMetadata,
 } from '@/pages/Home/CommentAnnotationCard';
+import { runDiffTransition, type DiffTransitionIntent } from '@/pages/Home/diff-transition';
 import { DiffFileHeader, FileViewHeader } from '@/pages/Home/DiffFileHeader';
+import {
+  fileContentsQueryKey,
+  fileInsightsQueryKey,
+  readFileChange,
+} from '@/pages/Home/file-content-data';
 import { resolveCurrentFileSelection } from '@/pages/Home/file-selection';
 import { FileInsightsPanel, type InsightsPanelTab } from '@/pages/Home/FileInsightsPanel';
 import { hunkSeparatorCSS } from '@/pages/Home/hunk-separator-css';
-import {
-  getCodeExplanation,
-  getFileInsight,
-  getLineSelectionLabel,
-  getSelectedCode,
-  type CodeExplanation,
-} from '@/pages/Home/insights-data';
+import { getLineSelectionLabel, getSelectedCode } from '@/pages/Home/insights-data';
 import { REVIEW_INSIGHTS_WIDTH } from '@/pages/Home/review-layout';
 import { ReviewActionBar } from '@/pages/Home/ReviewActionBar';
 import { ReviewDiffPanel } from '@/pages/Home/ReviewDiffPanel';
@@ -41,8 +40,6 @@ import {
   useDiffLineSelectionActions,
 } from '@/pages/Home/use-diff-line-selection-actions';
 import { useReviewKeyboardShortcuts } from '@/pages/Home/use-review-keyboard-shortcuts';
-
-type DiffTransitionIntent = 'approve' | 'flag' | 'next' | 'previous' | 'skip';
 
 function annotationKey(side: AnnotationSide, lineNumber: number): string {
   return `${side}:${lineNumber}`;
@@ -66,76 +63,6 @@ function errorText(error: unknown): string {
   if (isApiError(error)) return error.message;
   if (error instanceof Error) return error.message;
   return 'Request failed.';
-}
-
-function shouldReduceMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
-function runDiffTransition(intent: DiffTransitionIntent, update: () => void): void {
-  if (document.startViewTransition === undefined || shouldReduceMotion()) {
-    update();
-    return;
-  }
-
-  const root = document.documentElement;
-  root.dataset.diffTransition = intent;
-
-  try {
-    const transition = document.startViewTransition(() => {
-      flushSync(update);
-    });
-
-    void transition.finished.finally(() => {
-      if (root.dataset.diffTransition === intent) {
-        delete root.dataset.diffTransition;
-      }
-    });
-  } catch {
-    if (root.dataset.diffTransition === intent) {
-      delete root.dataset.diffTransition;
-    }
-    update();
-  }
-}
-
-async function readContents(
-  pullRequest: PullRequestDetails,
-  path: string,
-  side: FileSide,
-): Promise<string> {
-  try {
-    return (await diffviewerApi.getFileContents(pullRequest.ref, path, side, pullRequest)).contents;
-  } catch (error) {
-    if (isApiError(error) && error.status === 404) return '';
-    throw error;
-  }
-}
-
-function fileContentsQueryKey(pullRequest: PullRequestDetails, path: string): QueryKey {
-  return [
-    'file-contents',
-    pullRequest.ref.owner,
-    pullRequest.ref.repo,
-    pullRequest.ref.pullNumber,
-    pullRequest.baseSha,
-    pullRequest.headSha,
-    path,
-  ];
-}
-
-async function readFileChange(pullRequest: PullRequestDetails, file: PullRequestFile) {
-  const [oldContents, newContents] = await Promise.all([
-    readContents(pullRequest, file.path, 'LEFT'),
-    readContents(pullRequest, file.path, 'RIGHT'),
-  ]);
-
-  return {
-    id: file.path,
-    isReviewable: file.status !== 'unchanged',
-    oldFile: { name: file.path, contents: oldContents },
-    newFile: { name: file.path, contents: newContents },
-  };
 }
 
 interface InitialPullRequestLoad {
@@ -273,6 +200,40 @@ export function HomePage(): React.ReactNode {
     gcTime: 30 * 60 * 1000,
   });
 
+  const fileInsightsQuery = useQuery({
+    queryKey: pullRequest !== null ? fileInsightsQueryKey(pullRequest) : ['file-insights', 'empty'],
+    queryFn: () => {
+      if (pullRequest === null) throw new Error('Pull request is required.');
+      return diffviewerApi.generateFileInsights(pullRequest.ref, pullRequest);
+    },
+    enabled: false,
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 30 * 60 * 1000,
+  });
+
+  const explainCode = useMutation({
+    mutationFn: async (target: LineActionTarget) => {
+      if (pullRequest === null || currentChange === null || currentFile === null) {
+        throw new Error('Pull request and file are required.');
+      }
+      const selectedCode = getSelectedCode(
+        target.range,
+        currentChange.newFile.contents,
+        currentChange.oldFile.contents,
+      ).trim();
+      const side = annotationSideToFileSide(target.side);
+      return diffviewerApi.explainCodeSelection(pullRequest.ref, {
+        baseSha: pullRequest.baseSha,
+        headSha: pullRequest.headSha,
+        path: currentFile.path,
+        side,
+        startLine: Math.min(target.range.start, target.range.end),
+        endLine: Math.max(target.range.start, target.range.end),
+        ...(selectedCode ? { selectedCode } : {}),
+      });
+    },
+  });
+
   useEffect(() => {
     if (pullRequest === null || !canReviewCurrent) return;
 
@@ -290,7 +251,11 @@ export function HomePage(): React.ReactNode {
   }, [canReviewCurrent, currentIndex, files, pullRequest, queryClient]);
 
   const currentChange = contentQuery.data ?? null;
-  const currentInsight = canReviewCurrent ? getFileInsight(currentFile) : null;
+  const currentInsight =
+    canReviewCurrent && currentFile !== null
+      ? (fileInsightsQuery.data?.insights.find((insight) => insight.path === currentFile.path) ??
+        null)
+      : null;
   const currentFilePath = currentFile?.path ?? null;
   const comments = useMemo(
     () => (currentFile === null ? [] : (commentsByFile[currentFile.path] ?? [])),
@@ -367,8 +332,8 @@ export function HomePage(): React.ReactNode {
         setFileReviewState(result.path, result.state);
         setActionError(null);
         goToNext(status === 'approved' ? 'approve' : status === 'flagged' ? 'flag' : 'skip');
-      } catch (error) {
-        setActionError(errorText(error));
+      } catch {
+        return;
       }
     },
     [canReviewCurrent, currentFile, goToNext, setFileReviewState, updateState],
@@ -418,30 +383,30 @@ export function HomePage(): React.ReactNode {
   );
 
   const explainTarget = useCallback(
-    (target: LineActionTarget): void => {
+    async (target: LineActionTarget): Promise<void> => {
       if (!canReviewCurrent) return;
       setSelectedLines(
         target.rangeSelection ? { filePath: target.filePath, range: target.range } : null,
       );
-      setCodeExplanation({
-        explanation: getCodeExplanation(
-          currentFile,
-          getLineSelectionLabel(target.range, target.lineNumber),
-          currentChange === null
-            ? ''
-            : getSelectedCode(
-                target.range,
-                currentChange.newFile.contents,
-                currentChange.oldFile.contents,
-              ),
-        ),
-        filePath: currentFilePath,
-      });
+      setCodeExplanation(null);
       setInsightsTab('explainer');
       setIsInsightsOpen(true);
       setLineActionTarget(null);
+      try {
+        const explanation = await explainCode.mutateAsync(target);
+        setCodeExplanation({
+          explanation: {
+            ...explanation,
+            label: explanation.label || getLineSelectionLabel(target.range, target.lineNumber),
+          },
+          filePath: currentFilePath,
+        });
+        setActionError(null);
+      } catch (error) {
+        setActionError(errorText(error));
+      }
     },
-    [canReviewCurrent, currentChange, currentFile, currentFilePath],
+    [canReviewCurrent, currentFilePath, explainCode],
   );
   useReviewKeyboardShortcuts({
     canReviewCurrent,
@@ -692,7 +657,7 @@ export function HomePage(): React.ReactNode {
               if (lineActionTarget !== null) addDraftComment(lineActionTarget);
             }}
             onExplain={() => {
-              if (lineActionTarget !== null) explainTarget(lineActionTarget);
+              if (lineActionTarget !== null) void explainTarget(lineActionTarget);
             }}
             onPointerCancel={clearDiffPointerSelection}
             onPointerDown={handleDiffPointerDown}
@@ -715,11 +680,18 @@ export function HomePage(): React.ReactNode {
           {canReviewCurrent && (
             <FileInsightsPanel
               activeTab={insightsTab}
+              explanationError={explainCode.isError ? errorText(explainCode.error) : null}
               explanation={visibleCodeExplanation}
               file={currentFile}
               insight={currentInsight}
+              insightError={fileInsightsQuery.isError ? errorText(fileInsightsQuery.error) : null}
+              isExplanationLoading={explainCode.isPending}
+              isInsightLoading={fileInsightsQuery.isFetching}
               isOpen={isReviewableInsightsOpen}
               onClose={() => setIsInsightsOpen(false)}
+              onGenerateInsight={() => {
+                void fileInsightsQuery.refetch();
+              }}
               onTabChange={setInsightsTab}
             />
           )}

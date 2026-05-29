@@ -109,12 +109,25 @@ class Settings(BaseSettings):
         default="http://localhost:3000",
         validation_alias="DIFFVIEWER_CORS_ORIGINS",
     )
+    openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
+    openai_api_base_url: str = Field(
+        default="https://api.openai.com/v1",
+        validation_alias="OPENAI_API_BASE_URL",
+    )
+    openai_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_MODEL")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     @field_validator("github_token", mode="before")
     @classmethod
     def empty_token_as_none(cls, value: object) -> object:
+        if value == "":
+            return None
+        return value
+
+    @field_validator("openai_api_key", mode="before")
+    @classmethod
+    def empty_openai_api_key_as_none(cls, value: object) -> object:
         if value == "":
             return None
         return value

@@ -98,3 +98,32 @@ export interface PostedComment {
   side: FileSide;
   body: string;
 }
+
+export interface FileInsight {
+  path: string;
+  summary: string;
+  watchOuts: string[];
+}
+
+export interface FileInsightsResponse {
+  baseSha: string;
+  headSha: string;
+  provider: 'local' | 'openai';
+  insights: FileInsight[];
+}
+
+export interface CodeExplanationRequest {
+  baseSha: string;
+  headSha: string;
+  path: string;
+  side: FileSide;
+  startLine: number;
+  endLine: number;
+  selectedCode?: string;
+}
+
+export interface CodeExplanation {
+  label: string;
+  selectedCode?: string | null;
+  text: string;
+}

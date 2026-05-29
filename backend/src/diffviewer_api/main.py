@@ -10,9 +10,11 @@ from starlette.exceptions import HTTPException
 from starlette.types import Scope
 
 from diffviewer_api.config import Settings, get_settings
-from diffviewer_api.routes import comments, files, health, pull_requests, review_state
+from diffviewer_api.routes import comments, files, health, insights, pull_requests, review_state
 from diffviewer_api.services.file_service import FileService
 from diffviewer_api.services.github_client import GitHubClient, GitHubError
+from diffviewer_api.services.insight_provider import LocalInsightProvider, OpenAIInsightProvider
+from diffviewer_api.services.insight_service import InsightService
 from diffviewer_api.services.pull_request_recommendation_service import (
     PullRequestRecommendationService,
 )
@@ -53,9 +55,24 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.pull_request_recommendation_service = PullRequestRecommendationService(
             github_client,
         )
+        if resolved_settings.openai_api_key is None:
+            insight_provider = LocalInsightProvider()
+        else:
+            insight_provider = OpenAIInsightProvider(
+                api_key=resolved_settings.openai_api_key,
+                model=resolved_settings.openai_model,
+                base_url=resolved_settings.openai_api_base_url,
+            )
+        app.state.insight_provider = insight_provider
+        app.state.insight_service = InsightService(
+            pull_requests=app.state.pull_request_service,
+            files=app.state.file_service,
+            provider=insight_provider,
+        )
         try:
             yield
         finally:
+            await insight_provider.close()
             await github_client.close()
             db_connection.close()
 
@@ -70,6 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(pull_requests.router)
     app.include_router(files.router)
+    app.include_router(insights.router)
     app.include_router(review_state.router)
     app.include_router(comments.router)
 
