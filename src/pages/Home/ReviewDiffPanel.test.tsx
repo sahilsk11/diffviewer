@@ -46,6 +46,10 @@ describe('ReviewDiffPanel', () => {
         onCloseAction={vi.fn()}
         onComment={vi.fn()}
         onExplain={vi.fn()}
+        onPointerCancel={vi.fn()}
+        onPointerDown={vi.fn()}
+        onPointerMove={vi.fn()}
+        onPointerUp={vi.fn()}
         options={{ enableLineSelection: true, onLineClick: vi.fn() }}
         panelRef={{ current: null }}
         renderAnnotation={() => null}

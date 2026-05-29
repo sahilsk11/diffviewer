@@ -23,6 +23,16 @@ The user reads everything you write. Respect that:
 - For anything spatial, architectural, or comparative, prefer a subagent-generated visualization (ASCII diagram, mermaid, screenshot) over a paragraph.
 - If you find yourself writing more than ~6 lines of prose in a row, stop and ask whether a list, a code block, or a diagram would land better.
 
+## Preview links
+
+When giving the user a DiffViewer preview link, prefill it with DiffViewer PR #2:
+
+```text
+/diff?pr=https%3A%2F%2Fgithub.com%2Fsahilsk11%2Fdiffviewer%2Fpull%2F2
+```
+
+Use that route instead of the bare preview root so the user lands directly on a real diff.
+
 ## 3. Consolidate. Don't reinvent what already exists.
 
 Before you write something new:

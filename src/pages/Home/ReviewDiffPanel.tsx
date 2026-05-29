@@ -33,6 +33,10 @@ interface ReviewDiffPanelProps<LAnnotation> {
   onCloseAction: () => void;
   onComment: () => void;
   onExplain: () => void;
+  onPointerCancel: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerMove: (event: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerUp: (event: React.PointerEvent<HTMLDivElement>) => void;
   options: Record<string, unknown>;
   panelRef: RefObject<HTMLDivElement | null>;
   renderAnnotation: (annotation: DiffLineAnnotation<LAnnotation>) => React.ReactNode;
@@ -56,6 +60,10 @@ export function ReviewDiffPanel<LAnnotation>({
   onCloseAction,
   onComment,
   onExplain,
+  onPointerCancel,
+  onPointerDown,
+  onPointerMove,
+  onPointerUp,
   options,
   panelRef,
   renderAnnotation,
@@ -101,6 +109,10 @@ export function ReviewDiffPanel<LAnnotation>({
       ref={panelRef}
       className="diff-file-transition-surface relative min-h-[28rem] flex-1 overflow-hidden"
       aria-label="Pull request diff"
+      onPointerCancelCapture={currentChange?.isReviewable === true ? onPointerCancel : undefined}
+      onPointerDownCapture={currentChange?.isReviewable === true ? onPointerDown : undefined}
+      onPointerMoveCapture={currentChange?.isReviewable === true ? onPointerMove : undefined}
+      onPointerUpCapture={currentChange?.isReviewable === true ? onPointerUp : undefined}
     >
       {canShowLineAction ? (
         <DiffLineActionBar
