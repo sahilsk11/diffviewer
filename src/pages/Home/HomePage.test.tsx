@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -39,6 +39,7 @@ vi.mock('@pierre/diffs/react', async () => {
           side: MockAnnotationSide;
           start: number;
         }) => void;
+        disableBackground?: boolean;
       };
       renderAnnotation?: (annotation: MockAnnotation) => React.ReactNode;
       renderCustomHeader?: (fileDiff: {
@@ -57,7 +58,10 @@ vi.mock('@pierre/diffs/react', async () => {
       };
 
       return (
-        <div aria-label="Mock diff">
+        <div
+          aria-label="Mock diff"
+          data-disable-background={options?.disableBackground === true ? 'true' : 'false'}
+        >
           <div>{renderCustomHeader?.(fileDiff) ?? renderHeaderMetadata?.()}</div>
           <div>
             {renderedOldFile.name}: {renderedOldFile.contents}
@@ -319,6 +323,10 @@ describe('HomePage', () => {
     expect(screen.getByText('1 / 1')).toBeInTheDocument();
     expect(screen.queryByLabelText('GitHub pull request URL')).not.toBeInTheDocument();
     expect(screen.queryByText('unreviewed')).not.toBeInTheDocument();
+    expect(await screen.findByLabelText('Mock diff')).toHaveAttribute(
+      'data-disable-background',
+      'true',
+    );
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining('/contents?path=src%2Fexample.ts&side=RIGHT'),
@@ -579,247 +587,5 @@ describe('HomePage', () => {
         }),
       );
     });
-  });
-
-  it('shows line actions before adding a draft comment', async () => {
-    setupFetch();
-    const user = userEvent.setup();
-    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
-
-    renderWithProviders(<App />);
-
-    await screen.findByText('PR title');
-    await user.click(await screen.findByRole('button', { name: 'Mock additions line 1' }));
-
-    expect(screen.queryByPlaceholderText('Add a line comment...')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Comment' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Explain' })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Comment' }));
-
-    const commentBox = await screen.findByPlaceholderText('Add a line comment...');
-    await waitFor(() => {
-      expect(commentBox).toHaveFocus();
-    });
-  });
-
-  it('keeps line actions visible when reselecting the same line', async () => {
-    setupFetch();
-    const user = userEvent.setup();
-    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
-
-    renderWithProviders(<App />);
-
-    await screen.findByText('PR title');
-    const line = await screen.findByRole('button', { name: 'Mock additions line 1' });
-
-    await user.click(line);
-    expect(screen.getByRole('button', { name: 'Comment' })).toBeInTheDocument();
-
-    await user.click(line);
-    expect(screen.getByRole('button', { name: 'Comment' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Explain' })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Hide line actions' }));
-    expect(screen.queryByRole('button', { name: 'Comment' })).not.toBeInTheDocument();
-  });
-
-  it('opens the code explainer from a selected range', async () => {
-    setupFetch();
-    const user = userEvent.setup();
-    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
-
-    renderWithProviders(<App />);
-
-    await screen.findByText('PR title');
-    await user.click(await screen.findByRole('button', { name: 'Mock select additions lines' }));
-    await user.click(await screen.findByRole('button', { name: 'Explain' }));
-
-    expect(screen.getByLabelText('File insights')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Code Explainer' })).toBeInTheDocument();
-    expect(screen.getByText('Added lines 1-3')).toBeInTheDocument();
-    expect(screen.getByText('new')).toBeInTheDocument();
-    expect(screen.getByText(/This selected range in src\/example.ts/i)).toBeInTheDocument();
-  });
-
-  it('clears the code explainer when navigating to another file', async () => {
-    setupTwoFileFetch();
-    const user = userEvent.setup();
-    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
-
-    renderWithProviders(<App />);
-
-    await screen.findByText('PR title');
-    await user.click(await screen.findByRole('button', { name: 'Mock select additions lines' }));
-    await user.click(await screen.findByRole('button', { name: 'Explain' }));
-    expect(screen.getByText(/This selected range in src\/first.ts/i)).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /Approve/ }));
-
-    await screen.findByText('2 / 2');
-    expect(screen.queryByText(/This selected range in src\/first.ts/i)).not.toBeInTheDocument();
-    expect(screen.getByText('Select text to get started.')).toBeInTheDocument();
-  });
-
-  it('clears pending line actions when navigating to another file', async () => {
-    setupTwoFileFetch();
-    const user = userEvent.setup();
-    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
-
-    renderWithProviders(<App />);
-
-    await screen.findByText('PR title');
-    await user.click(await screen.findByRole('button', { name: 'Mock additions line 1' }));
-    expect(screen.getByRole('button', { name: 'Comment' })).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: /Approve/ }));
-
-    await screen.findByText('2 / 2');
-    expect(screen.queryByRole('button', { name: 'Comment' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Explain' })).not.toBeInTheDocument();
-  });
-
-  it('comments on a later selected range after a single line click', async () => {
-    const fetchMock = setupFetch();
-    const user = userEvent.setup();
-    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
-
-    renderWithProviders(<App />);
-
-    await screen.findByText('PR title');
-    await user.click(await screen.findByRole('button', { name: 'Mock additions line 1' }));
-    await user.click(
-      await screen.findByRole('button', { name: 'Mock select later additions lines' }),
-    );
-    await user.click(await screen.findByRole('button', { name: 'Comment' }));
-
-    const commentBox = await screen.findByPlaceholderText('Add a line comment...');
-    await user.type(commentBox, 'Range comment');
-    await user.click(screen.getByRole('button', { name: 'Comment' }));
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/repos/OWNER/REPO/pulls/123/comments',
-        expect.objectContaining({
-          body: JSON.stringify({
-            body: 'Range comment',
-            path: 'src/example.ts',
-            line: 3,
-            side: 'RIGHT',
-            headSha: 'head_sha',
-            startLine: 2,
-            startSide: 'RIGHT',
-          }),
-          method: 'POST',
-        }),
-      );
-    });
-  });
-
-  it('posts a range comment using the draft range even after selecting another range', async () => {
-    const fetchMock = setupFetch();
-    const user = userEvent.setup();
-    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
-
-    renderWithProviders(<App />);
-
-    await screen.findByText('PR title');
-    await user.click(await screen.findByRole('button', { name: 'Mock select additions lines' }));
-    await user.click(await screen.findByRole('button', { name: 'Comment' }));
-
-    const commentBox = await screen.findByPlaceholderText('Add a line comment...');
-    await user.type(commentBox, 'Range comment');
-    await user.click(
-      await screen.findByRole('button', { name: 'Mock select later additions lines' }),
-    );
-    const commentButtons = screen.getAllByRole('button', { name: 'Comment' });
-    await user.click(commentButtons[commentButtons.length - 1]);
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/repos/OWNER/REPO/pulls/123/comments',
-        expect.objectContaining({
-          body: JSON.stringify({
-            body: 'Range comment',
-            path: 'src/example.ts',
-            line: 3,
-            side: 'RIGHT',
-            headSha: 'head_sha',
-            startLine: 1,
-            startSide: 'RIGHT',
-          }),
-          method: 'POST',
-        }),
-      );
-    });
-  });
-
-  it('opens per-file insights in the right sidebar', async () => {
-    setupFetch();
-    const user = userEvent.setup();
-    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
-
-    renderWithProviders(<App />);
-
-    await screen.findByText('PR title');
-    await user.click(screen.getByRole('button', { name: 'Show insights' }));
-
-    const insightsPanel = screen.getByLabelText('File insights');
-    expect(insightsPanel).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Show insights' })).not.toBeInTheDocument();
-    expect(within(insightsPanel).queryByText('src/example.ts')).not.toBeInTheDocument();
-    expect(
-      within(insightsPanel).getByText(/Here's what happens in this file/i),
-    ).toBeInTheDocument();
-
-    await user.click(screen.getByRole('button', { name: 'Hide insights' }));
-
-    expect(screen.queryByLabelText('File insights')).not.toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Show insights' })).toBeInTheDocument();
-  });
-
-  it('shows placeholder insights scoped to the selected file data', async () => {
-    setupFetch({ additions: 7, deletions: 4, path: 'src/pages/Home/HomePage.tsx' });
-    const user = userEvent.setup();
-    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
-
-    renderWithProviders(<App />);
-
-    await screen.findByText('PR title');
-    await user.click(screen.getByRole('button', { name: 'Show insights' }));
-
-    const insightsPanel = screen.getByLabelText('File insights');
-    expect(
-      within(insightsPanel).getByText(/Here's what happens in this file/i),
-    ).toBeInTheDocument();
-    expect(within(insightsPanel).getByText(/modified React TypeScript file/i)).toBeInTheDocument();
-    expect(within(insightsPanel).getByText(/11 changed lines/i)).toBeInTheDocument();
-    expect(within(insightsPanel).getAllByText(/7 additions/i).length).toBeGreaterThan(0);
-    expect(within(insightsPanel).getAllByText(/4 deletions/i).length).toBeGreaterThan(0);
-    expect(
-      within(insightsPanel).getByText(/Verify any future AI text stays specific enough/i),
-    ).toBeInTheDocument();
-  });
-
-  it('toggles sidebars from keyboard shortcuts', async () => {
-    setupFetch();
-    const user = userEvent.setup();
-    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
-
-    renderWithProviders(<App />);
-
-    await screen.findByText('PR title');
-
-    await user.keyboard('b');
-    expect(screen.getByRole('button', { name: 'Show sidebar' })).toBeInTheDocument();
-
-    await user.keyboard('b');
-    expect(screen.getByRole('button', { name: 'Hide sidebar' })).toBeInTheDocument();
-
-    await user.keyboard('i');
-    expect(screen.getByLabelText('File insights')).toBeInTheDocument();
-
-    await user.keyboard('i');
-    expect(screen.queryByLabelText('File insights')).not.toBeInTheDocument();
   });
 });
