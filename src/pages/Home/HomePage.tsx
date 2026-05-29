@@ -27,11 +27,18 @@ import { hunkSeparatorCSS } from '@/pages/Home/hunk-separator-css';
 import {
   getCodeExplanation,
   getFileInsight,
+  getLineSelectionLabel,
+  getSelectedCode,
   type CodeExplanation,
 } from '@/pages/Home/insights-data';
 import { ReviewActionBar } from '@/pages/Home/ReviewActionBar';
 import { ReviewDiffPanel } from '@/pages/Home/ReviewDiffPanel';
 import { ReviewHeader } from '@/pages/Home/ReviewHeader';
+import {
+  type FileScopedLineSelection,
+  type LineActionTarget,
+  useDiffLineSelectionActions,
+} from '@/pages/Home/use-diff-line-selection-actions';
 
 interface FileChange {
   id: string;
@@ -41,21 +48,6 @@ interface FileChange {
 }
 
 type DiffTransitionIntent = 'approve' | 'flag' | 'previous' | 'skip';
-
-interface LineActionTarget {
-  filePath: string | null;
-  left: number | null;
-  lineNumber: number;
-  rangeSelection: boolean;
-  side: AnnotationSide;
-  top: number | null;
-  range: SelectedLineRange;
-}
-
-interface FileScopedLineSelection {
-  filePath: string | null;
-  range: SelectedLineRange;
-}
 
 function annotationKey(side: AnnotationSide, lineNumber: number): string {
   return `${side}:${lineNumber}`;
@@ -110,14 +102,6 @@ function runDiffTransition(intent: DiffTransitionIntent, update: () => void): vo
     }
     update();
   }
-}
-
-function lineTargetLabel(target: LineActionTarget | null): string {
-  if (target === null) return '';
-  if (target.range.start === target.range.end) return `Line ${target.lineNumber}`;
-  const start = Math.min(target.range.start, target.range.end);
-  const end = Math.max(target.range.start, target.range.end);
-  return `Lines ${start}-${end}`;
 }
 
 async function readContents(
@@ -327,6 +311,17 @@ export function HomePage(): React.ReactNode {
     lineActionTarget?.filePath === currentFilePath ? lineActionTarget : null;
   const visibleSelectedLines =
     selectedLines?.filePath === currentFilePath ? selectedLines.range : null;
+  const {
+    clearDiffPointerSelection,
+    handleDiffPointerDown,
+    handleDiffPointerMove,
+    readLineActionPosition,
+  } = useDiffLineSelectionActions({
+    currentFilePath,
+    panelRef: diffPanelRef,
+    setLineActionTarget,
+    setSelectedLines,
+  });
 
   useEffect(() => {
     if (activeCommentId === null) return;
@@ -434,27 +429,25 @@ export function HomePage(): React.ReactNode {
         target.rangeSelection ? { filePath: target.filePath, range: target.range } : null,
       );
       setCodeExplanation({
-        explanation: getCodeExplanation(currentFile, lineTargetLabel(target)),
+        explanation: getCodeExplanation(
+          currentFile,
+          getLineSelectionLabel(target.range, target.lineNumber),
+          currentChange === null
+            ? ''
+            : getSelectedCode(
+                target.range,
+                currentChange.newFile.contents,
+                currentChange.oldFile.contents,
+              ),
+        ),
         filePath: currentFilePath,
       });
       setInsightsTab('explainer');
       setIsInsightsOpen(true);
       setLineActionTarget(null);
     },
-    [currentFile, currentFilePath],
+    [currentChange, currentFile, currentFilePath],
   );
-
-  const readLineActionPosition = useCallback((lineElement: HTMLElement | null) => {
-    const panel = diffPanelRef.current;
-    if (panel === null || lineElement === null) return { left: null, top: null };
-
-    const panelRect = panel.getBoundingClientRect();
-    const lineRect = lineElement.getBoundingClientRect();
-    return {
-      left: Math.max(8, lineRect.left - panelRect.left + 12),
-      top: Math.max(8, lineRect.top - panelRect.top - 44),
-    };
-  }, []);
 
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent): void {
@@ -516,28 +509,17 @@ export function HomePage(): React.ReactNode {
       }) => {
         const side = sideToSelectionSide(annotationSide);
         const range = { start: lineNumber, side, end: lineNumber, endSide: side };
+
         const actionPosition = readLineActionPosition(lineElement);
-
-        setSelectedLines(null);
-        setLineActionTarget((currentTarget) => {
-          if (
-            currentTarget !== null &&
-            !currentTarget.rangeSelection &&
-            currentTarget.side === annotationSide &&
-            currentTarget.lineNumber === lineNumber
-          ) {
-            return null;
-          }
-
-          return {
-            filePath: currentFilePath,
-            left: actionPosition.left,
-            lineNumber,
-            rangeSelection: false,
-            side: annotationSide,
-            top: actionPosition.top,
-            range,
-          };
+        setSelectedLines({ filePath: currentFilePath, range });
+        setLineActionTarget({
+          filePath: currentFilePath,
+          left: actionPosition.left,
+          lineNumber,
+          rangeSelection: false,
+          side: annotationSide,
+          top: actionPosition.top,
+          range,
         });
       },
       onLineSelected: (range: SelectedLineRange | null) => {
@@ -696,7 +678,7 @@ export function HomePage(): React.ReactNode {
       <div
         className={
           isInsightsOpen
-            ? 'flex min-h-0 flex-1 flex-col gap-4 px-4 transition-[padding] duration-200 ease-out sm:px-6 lg:pr-[22.5rem]'
+            ? 'flex min-h-0 flex-1 flex-col gap-4 px-4 transition-[padding] duration-200 ease-out sm:px-6 lg:pr-[27.5rem]'
             : 'flex min-h-0 flex-1 flex-col gap-4 px-4 transition-[padding] duration-200 ease-out sm:px-6'
         }
       >
@@ -730,6 +712,10 @@ export function HomePage(): React.ReactNode {
             onExplain={() => {
               if (lineActionTarget !== null) explainTarget(lineActionTarget);
             }}
+            onPointerCancel={clearDiffPointerSelection}
+            onPointerDown={handleDiffPointerDown}
+            onPointerMove={handleDiffPointerMove}
+            onPointerUp={clearDiffPointerSelection}
             options={options}
             panelRef={diffPanelRef}
             renderAnnotation={renderAnnotation}

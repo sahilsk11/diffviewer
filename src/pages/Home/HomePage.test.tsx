@@ -603,7 +603,7 @@ describe('HomePage', () => {
     });
   });
 
-  it('hides line actions after clicking the same line again', async () => {
+  it('keeps line actions visible when reselecting the same line', async () => {
     setupFetch();
     const user = userEvent.setup();
     window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
@@ -617,8 +617,11 @@ describe('HomePage', () => {
     expect(screen.getByRole('button', { name: 'Comment' })).toBeInTheDocument();
 
     await user.click(line);
+    expect(screen.getByRole('button', { name: 'Comment' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Explain' })).toBeInTheDocument();
+
+    await user.click(screen.getByRole('button', { name: 'Hide line actions' }));
     expect(screen.queryByRole('button', { name: 'Comment' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Explain' })).not.toBeInTheDocument();
   });
 
   it('opens the code explainer from a selected range', async () => {
@@ -634,8 +637,9 @@ describe('HomePage', () => {
 
     expect(screen.getByLabelText('File insights')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Code Explainer' })).toBeInTheDocument();
-    expect(screen.getByText('Lines 1-3')).toBeInTheDocument();
-    expect(screen.getByText(/This selected code in src\/example.ts/i)).toBeInTheDocument();
+    expect(screen.getByText('Added lines 1-3')).toBeInTheDocument();
+    expect(screen.getByText('new')).toBeInTheDocument();
+    expect(screen.getByText(/This selected range in src\/example.ts/i)).toBeInTheDocument();
   });
 
   it('clears the code explainer when navigating to another file', async () => {
@@ -648,12 +652,12 @@ describe('HomePage', () => {
     await screen.findByText('PR title');
     await user.click(await screen.findByRole('button', { name: 'Mock select additions lines' }));
     await user.click(await screen.findByRole('button', { name: 'Explain' }));
-    expect(screen.getByText(/This selected code in src\/first.ts/i)).toBeInTheDocument();
+    expect(screen.getByText(/This selected range in src\/first.ts/i)).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: /Approve/ }));
 
     await screen.findByText('2 / 2');
-    expect(screen.queryByText(/This selected code in src\/first.ts/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/This selected range in src\/first.ts/i)).not.toBeInTheDocument();
     expect(screen.getByText('Select text to get started.')).toBeInTheDocument();
   });
 
@@ -763,9 +767,9 @@ describe('HomePage', () => {
     const insightsPanel = screen.getByLabelText('File insights');
     expect(insightsPanel).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Show insights' })).not.toBeInTheDocument();
-    expect(within(insightsPanel).getByText('src/example.ts')).toBeInTheDocument();
+    expect(within(insightsPanel).queryByText('src/example.ts')).not.toBeInTheDocument();
     expect(
-      within(insightsPanel).getByText('modified file with 2 additions and 1 deletion.'),
+      within(insightsPanel).getByText(/Here's what happens in this file/i),
     ).toBeInTheDocument();
 
     await user.click(screen.getByRole('button', { name: 'Hide insights' }));
@@ -774,7 +778,7 @@ describe('HomePage', () => {
     expect(screen.getByRole('button', { name: 'Show insights' })).toBeInTheDocument();
   });
 
-  it('derives insight summaries from loaded file data for common repo paths', async () => {
+  it('shows placeholder insights scoped to the selected file data', async () => {
     setupFetch({ additions: 7, deletions: 4, path: 'src/pages/Home/HomePage.tsx' });
     const user = userEvent.setup();
     window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
@@ -785,13 +789,16 @@ describe('HomePage', () => {
     await user.click(screen.getByRole('button', { name: 'Show insights' }));
 
     const insightsPanel = screen.getByLabelText('File insights');
-    expect(within(insightsPanel).getByText('src/pages/Home/HomePage.tsx')).toBeInTheDocument();
     expect(
-      within(insightsPanel).getByText('modified file with 7 additions and 4 deletions.'),
+      within(insightsPanel).getByText(/Here's what happens in this file/i),
     ).toBeInTheDocument();
+    expect(within(insightsPanel).getByText(/modified React TypeScript file/i)).toBeInTheDocument();
+    expect(within(insightsPanel).getByText(/11 changed lines/i)).toBeInTheDocument();
+    expect(within(insightsPanel).getAllByText(/7 additions/i).length).toBeGreaterThan(0);
+    expect(within(insightsPanel).getAllByText(/4 deletions/i).length).toBeGreaterThan(0);
     expect(
-      screen.queryByText(/Turns the main page into a PR-first review surface/i),
-    ).not.toBeInTheDocument();
+      within(insightsPanel).getByText(/Verify any future AI text stays specific enough/i),
+    ).toBeInTheDocument();
   });
 
   it('toggles sidebars from keyboard shortcuts', async () => {
