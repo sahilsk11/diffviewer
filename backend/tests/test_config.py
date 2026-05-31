@@ -51,13 +51,3 @@ def test_discovers_github_token_from_gh_hosts(tmp_path: Path) -> None:
 
     assert discover_github_token([hosts]) == "from-gh-hosts"
 
-
-def test_parses_recommended_pull_request_repos() -> None:
-    settings = Settings(
-        diffviewer_recommended_pr_repos_raw="sahilsk11/DiffViewer, octocat/Hello-World",
-    )
-
-    assert settings.diffviewer_recommended_pr_repos == [
-        "sahilsk11/DiffViewer",
-        "octocat/Hello-World",
-    ]

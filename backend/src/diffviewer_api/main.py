@@ -52,7 +52,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         app.state.pull_request_recommendation_service = PullRequestRecommendationService(
             github_client,
-            resolved_settings.diffviewer_recommended_pr_repos,
         )
         try:
             yield
