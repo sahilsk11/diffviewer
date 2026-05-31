@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import re
+from collections.abc import Sequence
 from typing import Any
 
 from diffviewer_api.models.github import PullRequestRecommendation, PullRequestRef
@@ -10,10 +11,19 @@ from diffviewer_api.services.github_client import GitHubClient, GitHubError
 REPO_REF_RE = re.compile(r"^[^/\s]+/[^/\s]+$")
 PR_HTML_URL_RE = re.compile(r"^https://github\.com/([^/]+)/([^/]+)/pull/([0-9]+)$")
 DEFAULT_LIMIT = 3
+RECOMMENDED_PULL_REQUEST_REPOSITORIES = (
+    "sahilsk11/sas",
+    "sahilsk11/code-reviewer",
+    "sahilsk11/diffviewer",
+)
 
 
 class PullRequestRecommendationService:
-    def __init__(self, github: GitHubClient, repositories: list[str]) -> None:
+    def __init__(
+        self,
+        github: GitHubClient,
+        repositories: Sequence[str] = RECOMMENDED_PULL_REQUEST_REPOSITORIES,
+    ) -> None:
         self._github = github
         self._repositories = [repo for repo in repositories if REPO_REF_RE.match(repo)]
 
@@ -21,22 +31,7 @@ class PullRequestRecommendationService:
         if limit < 1:
             return []
 
-        if self._repositories:
-            return await self._list_for_repositories(limit)
-
-        if not self._github.is_authenticated:
-            return []
-
-        user = await self._github.get_authenticated_user()
-        login = user.get("login")
-        if not isinstance(login, str) or login == "":
-            return []
-
-        recommendations = await self._search(
-            f"is:pr is:open archived:false author:{login}",
-            limit=limit,
-        )
-        return self._latest_unique(recommendations, limit=limit)
+        return await self._list_for_repositories(limit)
 
     async def _list_for_repositories(self, limit: int) -> list[PullRequestRecommendation]:
         recommendations: list[PullRequestRecommendation] = []
