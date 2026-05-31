@@ -31,6 +31,7 @@ import {
   getSelectedCode,
   type CodeExplanation,
 } from '@/pages/Home/insights-data';
+import { scrollDiffPanel } from '@/pages/Home/keyboard-scroll';
 import { ReviewActionBar } from '@/pages/Home/ReviewActionBar';
 import { ReviewDiffPanel } from '@/pages/Home/ReviewDiffPanel';
 import { ReviewHeader } from '@/pages/Home/ReviewHeader';
@@ -40,7 +41,7 @@ import {
   useDiffLineSelectionActions,
 } from '@/pages/Home/use-diff-line-selection-actions';
 
-type DiffTransitionIntent = 'approve' | 'flag' | 'previous' | 'skip';
+type DiffTransitionIntent = 'approve' | 'flag' | 'next' | 'previous' | 'skip';
 
 function annotationKey(side: AnnotationSide, lineNumber: number): string {
   return `${side}:${lineNumber}`;
@@ -453,13 +454,19 @@ export function HomePage(): React.ReactNode {
       if (key === 'z' || event.key === 'ArrowLeft') {
         event.preventDefault();
         goToPrevious();
-      } else if (key === 'x' || event.key === 'ArrowDown') {
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        goToNext('next');
+      } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+        event.preventDefault();
+        scrollDiffPanel(diffPanelRef.current, event.key === 'ArrowDown' ? 'down' : 'up');
+      } else if (key === 'x') {
         event.preventDefault();
         void markCurrent('flagged');
-      } else if (key === 'a' || event.key === 'ArrowUp') {
+      } else if (key === 'a') {
         event.preventDefault();
         void markCurrent('approved');
-      } else if (key === 's' || event.key === 'ArrowRight') {
+      } else if (key === 's') {
         event.preventDefault();
         void markCurrent('skipped');
       } else if (key === 'b') {
@@ -474,7 +481,7 @@ export function HomePage(): React.ReactNode {
     window.addEventListener('keydown', handleKeyDown);
 
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canReviewCurrent, goToPrevious, markCurrent, pullRequest, toggleSidebar]);
+  }, [canReviewCurrent, goToNext, goToPrevious, markCurrent, pullRequest, toggleSidebar]);
 
   const options = useMemo(
     () => ({
