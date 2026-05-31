@@ -9,6 +9,7 @@ describe('FileInsightsPanel', () => {
       <FileInsightsPanel
         activeTab="summary"
         explanation={null}
+        explanationError={null}
         file={{
           additions: 3,
           changes: 4,
@@ -17,11 +18,16 @@ describe('FileInsightsPanel', () => {
           status: 'modified',
         }}
         insight={{
+          path: 'src/example.ts',
           summary: '**Modified** the `review` flow with [details](https://example.com).',
           watchOuts: ['Confirm `state` survives navigation.', '**Check** compact view wrapping.'],
         }}
+        insightError={null}
+        isExplanationLoading={false}
+        isInsightLoading={false}
         isOpen
         onClose={vi.fn()}
+        onGenerateInsight={vi.fn()}
         onTabChange={vi.fn()}
       />,
     );

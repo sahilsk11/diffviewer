@@ -6,6 +6,7 @@ from fastapi import Request
 from diffviewer_api.services.comment_service import CommentService
 from diffviewer_api.services.file_service import FileService
 from diffviewer_api.services.github_client import GitHubClient
+from diffviewer_api.services.insight_service import InsightService
 from diffviewer_api.services.pull_request_recommendation_service import (
     PullRequestRecommendationService,
 )
@@ -39,6 +40,10 @@ def get_file_service(request: Request) -> FileService:
 
 def get_comment_service(request: Request) -> CommentService:
     return CommentService(get_github_client(request))
+
+
+def get_insight_service(request: Request) -> InsightService:
+    return request.app.state.insight_service
 
 
 async def close_github_client(client: GitHubClient) -> AsyncIterator[None]:
