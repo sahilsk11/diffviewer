@@ -1,10 +1,18 @@
 const DIFF_SCROLL_TARGET_SELECTOR = '[data-diff-scroll-target]';
-const KEYBOARD_SCROLL_LINE_COUNT = 8;
+const KEYBOARD_SCROLL_LINES_PER_SECOND = 40;
 const FALLBACK_LINE_HEIGHT = 20;
-const KEYBOARD_SCROLL_DURATION_MS = 180;
+const FIRST_SCROLL_FRAME_MS = 1000 / 60;
+const MAX_FRAME_MS = 50;
 
-const elementAnimations = new WeakMap<HTMLElement, number>();
-let windowAnimation: number | null = null;
+interface ActiveScroll {
+  animation: number;
+  direction: 'down' | 'up';
+  lastTime: number;
+  lineHeightPx: number;
+  target: HTMLElement | null;
+}
+
+let activeScroll: ActiveScroll | null = null;
 
 function findScrollTarget(panel: HTMLElement | null): HTMLElement | null {
   if (panel === null) return null;
@@ -14,73 +22,59 @@ function findScrollTarget(panel: HTMLElement | null): HTMLElement | null {
   );
 }
 
-function keyboardScrollDelta(target: HTMLElement | null): number {
-  if (target === null) return KEYBOARD_SCROLL_LINE_COUNT * FALLBACK_LINE_HEIGHT;
+function lineHeight(target: HTMLElement | null): number {
+  if (target === null) return FALLBACK_LINE_HEIGHT;
 
-  const lineHeight = Number.parseFloat(window.getComputedStyle(target).lineHeight);
-  if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
-    return KEYBOARD_SCROLL_LINE_COUNT * FALLBACK_LINE_HEIGHT;
-  }
+  const parsedLineHeight = Number.parseFloat(window.getComputedStyle(target).lineHeight);
+  if (!Number.isFinite(parsedLineHeight) || parsedLineHeight <= 0) return FALLBACK_LINE_HEIGHT;
 
-  return lineHeight * KEYBOARD_SCROLL_LINE_COUNT;
+  return parsedLineHeight;
 }
 
-function easeInOutSine(progress: number): number {
-  return -(Math.cos(Math.PI * progress) - 1) / 2;
-}
+function scrollByFrame(state: ActiveScroll, frameMs: number): void {
+  const sign = state.direction === 'down' ? 1 : -1;
+  const top = sign * state.lineHeightPx * KEYBOARD_SCROLL_LINES_PER_SECOND * (frameMs / 1000);
 
-function animateElementScroll(element: HTMLElement, top: number): void {
-  const animation = elementAnimations.get(element);
-  if (animation !== undefined) cancelAnimationFrame(animation);
-
-  const startTop = element.scrollTop;
-  const startTime = performance.now();
-
-  const step = (time: number) => {
-    const progress = Math.min((time - startTime) / KEYBOARD_SCROLL_DURATION_MS, 1);
-    element.scrollTo({ top: startTop + top * easeInOutSine(progress), behavior: 'auto' });
-
-    if (progress < 1) {
-      elementAnimations.set(element, requestAnimationFrame(step));
-      return;
-    }
-
-    elementAnimations.delete(element);
-  };
-
-  elementAnimations.set(element, requestAnimationFrame(step));
-}
-
-function animateWindowScroll(top: number): void {
-  if (windowAnimation !== null) cancelAnimationFrame(windowAnimation);
-
-  const startTop = window.scrollY;
-  const startTime = performance.now();
-
-  const step = (time: number) => {
-    const progress = Math.min((time - startTime) / KEYBOARD_SCROLL_DURATION_MS, 1);
-    window.scrollTo({ top: startTop + top * easeInOutSine(progress), behavior: 'auto' });
-
-    if (progress < 1) {
-      windowAnimation = requestAnimationFrame(step);
-      return;
-    }
-
-    windowAnimation = null;
-  };
-
-  windowAnimation = requestAnimationFrame(step);
-}
-
-export function scrollDiffPanel(panel: HTMLElement | null, direction: 'down' | 'up'): void {
-  const scrollTarget = findScrollTarget(panel);
-  const delta = keyboardScrollDelta(scrollTarget ?? panel);
-  const top = direction === 'down' ? delta : -delta;
-
-  if (scrollTarget === null) {
-    animateWindowScroll(top);
+  if (state.target === null) {
+    window.scrollTo({ top: window.scrollY + top, behavior: 'auto' });
     return;
   }
 
-  animateElementScroll(scrollTarget, top);
+  state.target.scrollTo({ top: state.target.scrollTop + top, behavior: 'auto' });
+}
+
+export function stopDiffPanelScroll(): void {
+  if (activeScroll === null) return;
+
+  cancelAnimationFrame(activeScroll.animation);
+  activeScroll = null;
+}
+
+export function scrollDiffPanel(panel: HTMLElement | null, direction: 'down' | 'up'): void {
+  const target = findScrollTarget(panel);
+
+  if (activeScroll?.target === target && activeScroll.direction === direction) return;
+
+  stopDiffPanelScroll();
+
+  const state: ActiveScroll = {
+    animation: 0,
+    direction,
+    lastTime: performance.now(),
+    lineHeightPx: lineHeight(target ?? panel),
+    target,
+  };
+
+  const step = (time: number) => {
+    if (activeScroll !== state) return;
+
+    const frameMs = Math.min(Math.max(time - state.lastTime, 0), MAX_FRAME_MS);
+    state.lastTime = time;
+    scrollByFrame(state, frameMs);
+    state.animation = requestAnimationFrame(step);
+  };
+
+  scrollByFrame(state, FIRST_SCROLL_FRAME_MS);
+  state.animation = requestAnimationFrame(step);
+  activeScroll = state;
 }

@@ -31,7 +31,6 @@ import {
   getSelectedCode,
   type CodeExplanation,
 } from '@/pages/Home/insights-data';
-import { scrollDiffPanel } from '@/pages/Home/keyboard-scroll';
 import { ReviewActionBar } from '@/pages/Home/ReviewActionBar';
 import { ReviewDiffPanel } from '@/pages/Home/ReviewDiffPanel';
 import { ReviewHeader } from '@/pages/Home/ReviewHeader';
@@ -40,6 +39,7 @@ import {
   type LineActionTarget,
   useDiffLineSelectionActions,
 } from '@/pages/Home/use-diff-line-selection-actions';
+import { useReviewKeyboardShortcuts } from '@/pages/Home/use-review-keyboard-shortcuts';
 
 type DiffTransitionIntent = 'approve' | 'flag' | 'next' | 'previous' | 'skip';
 
@@ -442,46 +442,16 @@ export function HomePage(): React.ReactNode {
     },
     [canReviewCurrent, currentChange, currentFile, currentFilePath],
   );
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent): void {
-      if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.altKey) return;
-      if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement)
-        return;
-
-      const key = event.key.toLowerCase();
-
-      if (key === 'z' || event.key === 'ArrowLeft') {
-        event.preventDefault();
-        goToPrevious();
-      } else if (event.key === 'ArrowRight') {
-        event.preventDefault();
-        goToNext('next');
-      } else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
-        event.preventDefault();
-        scrollDiffPanel(diffPanelRef.current, event.key === 'ArrowDown' ? 'down' : 'up');
-      } else if (key === 'x') {
-        event.preventDefault();
-        void markCurrent('flagged');
-      } else if (key === 'a') {
-        event.preventDefault();
-        void markCurrent('approved');
-      } else if (key === 's') {
-        event.preventDefault();
-        void markCurrent('skipped');
-      } else if (key === 'b') {
-        event.preventDefault();
-        toggleSidebar();
-      } else if (key === 'i' && pullRequest !== null && canReviewCurrent) {
-        event.preventDefault();
-        setIsInsightsOpen((isOpen) => !isOpen);
-      }
-    }
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [canReviewCurrent, goToNext, goToPrevious, markCurrent, pullRequest, toggleSidebar]);
+  useReviewKeyboardShortcuts({
+    canReviewCurrent,
+    diffPanelRef,
+    goToNext,
+    goToPrevious,
+    markCurrent,
+    pullRequest,
+    setIsInsightsOpen,
+    toggleSidebar,
+  });
 
   const options = useMemo(
     () => ({

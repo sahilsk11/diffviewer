@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { scrollDiffPanel } from '@/pages/Home/keyboard-scroll';
+import { scrollDiffPanel, stopDiffPanelScroll } from '@/pages/Home/keyboard-scroll';
 
 function setupAnimationFrame(): {
-  runAnimation: () => void;
+  frameCount: () => number;
+  runFrame: (time: number) => void;
 } {
   let nextHandle = 1;
   const callbacks = new Map<number, FrameRequestCallback>();
@@ -26,85 +27,105 @@ function setupAnimationFrame(): {
   );
 
   return {
-    runAnimation: () => {
-      for (const time of [90, 180]) {
-        const frame = callbacks.values().next().value;
-        if (frame !== undefined) frame(time);
-      }
+    frameCount: () => callbacks.size,
+    runFrame: (time: number) => {
+      const [handle, frame] = callbacks.entries().next().value ?? [];
+      if (handle !== undefined) callbacks.delete(handle);
+      if (frame !== undefined) frame(time);
     },
   };
 }
 
+function stubElementScroll(element: HTMLElement): ReturnType<typeof vi.fn> {
+  const scrollTo = vi.fn((options?: ScrollToOptions | number) => {
+    if (typeof options === 'object') element.scrollTop = Number(options.top);
+  });
+  element.scrollTo = scrollTo;
+  return scrollTo;
+}
+
 afterEach(() => {
+  stopDiffPanelScroll();
   document.body.replaceChildren();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
 
 describe('scrollDiffPanel', () => {
-  it('scrolls the marked child target with a line-height based distance', () => {
+  it('scrolls the marked child target at a steady line-height based speed', () => {
     const panel = document.createElement('div');
     const target = document.createElement('div');
-    const scrollTo = vi.fn((options?: ScrollToOptions | number) => {
-      if (typeof options === 'object') target.scrollTop = Number(options.top);
-    });
-    const { runAnimation } = setupAnimationFrame();
+    const scrollTo = stubElementScroll(target);
+    const animation = setupAnimationFrame();
 
     target.dataset.diffScrollTarget = '';
     target.style.lineHeight = '24px';
-    target.scrollTo = scrollTo;
     panel.append(target);
     document.body.append(panel);
 
     scrollDiffPanel(panel, 'down');
-    runAnimation();
+    animation.runFrame(100);
 
-    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 192 });
+    expect(scrollTo).toHaveBeenNthCalledWith(1, { behavior: 'auto', top: 16 });
+    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 64 });
   });
 
-  it('scrolls the panel itself when it is the marked target', () => {
+  it('does not restart the scroll loop for repeated keydown in the same direction', () => {
     const panel = document.createElement('div');
-    const scrollTo = vi.fn((options?: ScrollToOptions | number) => {
-      if (typeof options === 'object') panel.scrollTop = Number(options.top);
-    });
-    const { runAnimation } = setupAnimationFrame();
+    const scrollTo = stubElementScroll(panel);
+    const animation = setupAnimationFrame();
 
     panel.dataset.diffScrollTarget = '';
     panel.style.lineHeight = '18px';
-    panel.scrollTo = scrollTo;
     document.body.append(panel);
 
     scrollDiffPanel(panel, 'down');
-    runAnimation();
+    scrollDiffPanel(panel, 'down');
+    animation.runFrame(100);
 
-    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 144 });
+    expect(animation.frameCount()).toBe(1);
+    expect(scrollTo).toHaveBeenNthCalledWith(1, { behavior: 'auto', top: 12 });
+    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 48 });
   });
 
-  it('uses a negative distance for upward scrolling', () => {
+  it('switches direction without finishing a previous animation', () => {
     const panel = document.createElement('div');
     const target = document.createElement('div');
-    const scrollTo = vi.fn((options?: ScrollToOptions | number) => {
-      if (typeof options === 'object') target.scrollTop = Number(options.top);
-    });
-    const { runAnimation } = setupAnimationFrame();
+    const scrollTo = stubElementScroll(target);
+    setupAnimationFrame();
 
     target.dataset.diffScrollTarget = '';
     target.style.lineHeight = '16px';
     target.scrollTop = 200;
-    target.scrollTo = scrollTo;
     panel.append(target);
     document.body.append(panel);
 
+    scrollDiffPanel(panel, 'down');
     scrollDiffPanel(panel, 'up');
-    runAnimation();
 
-    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 72 });
+    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 200 });
+  });
+
+  it('stops immediately when requested', () => {
+    const panel = document.createElement('div');
+    const scrollTo = stubElementScroll(panel);
+    const animation = setupAnimationFrame();
+
+    panel.dataset.diffScrollTarget = '';
+    panel.style.lineHeight = '20px';
+    document.body.append(panel);
+
+    scrollDiffPanel(panel, 'down');
+    stopDiffPanelScroll();
+    animation.runFrame(100);
+
+    expect(scrollTo).toHaveBeenCalledTimes(1);
   });
 
   it('falls back to the window when no marked target exists', () => {
     const panel = document.createElement('div');
     const scrollTo = vi.fn();
-    const { runAnimation } = setupAnimationFrame();
+    const animation = setupAnimationFrame();
 
     panel.style.lineHeight = '22px';
     vi.stubGlobal('scrollTo', scrollTo);
@@ -112,21 +133,9 @@ describe('scrollDiffPanel', () => {
     document.body.append(panel);
 
     scrollDiffPanel(panel, 'down');
-    runAnimation();
+    animation.runFrame(100);
 
-    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 176 });
-  });
-
-  it('uses the default distance for a null panel', () => {
-    const scrollTo = vi.fn();
-    const { runAnimation } = setupAnimationFrame();
-
-    vi.stubGlobal('scrollTo', scrollTo);
-    vi.stubGlobal('scrollY', 0);
-
-    scrollDiffPanel(null, 'down');
-    runAnimation();
-
-    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 160 });
+    expect(scrollTo).toHaveBeenNthCalledWith(1, { behavior: 'auto', top: 14.666666666666666 });
+    expect(scrollTo).toHaveBeenLastCalledWith({ behavior: 'auto', top: 44 });
   });
 });

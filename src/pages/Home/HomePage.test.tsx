@@ -564,10 +564,7 @@ describe('HomePage', () => {
     vi.spyOn(performance, 'now').mockReturnValue(0);
     vi.stubGlobal(
       'requestAnimationFrame',
-      vi.fn((callback: FrameRequestCallback) => {
-        callback(180);
-        return 1;
-      }),
+      vi.fn(() => 1),
     );
     vi.stubGlobal('cancelAnimationFrame', vi.fn());
     window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
@@ -581,13 +578,16 @@ describe('HomePage', () => {
     if (scrollTarget === null) {
       throw new Error('Expected the diff scroll target to render');
     }
-    scrollTarget.scrollTo = scrollTo;
+    scrollTarget.scrollTo = vi.fn((options?: ScrollToOptions | number) => {
+      if (typeof options === 'object') scrollTarget.scrollTop = Number(options.top);
+      scrollTo(options);
+    });
 
     await user.keyboard('{ArrowUp}');
     await user.keyboard('{ArrowDown}');
 
-    expect(scrollTo).toHaveBeenCalledWith({ behavior: 'auto', top: -160 });
-    expect(scrollTo).toHaveBeenCalledWith({ behavior: 'auto', top: 160 });
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: 'auto', top: -13.333333333333334 });
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: 'auto', top: 0 });
     expect(fetchMock).not.toHaveBeenCalledWith(
       '/api/repos/OWNER/REPO/pulls/123/files/state',
       expect.anything(),
