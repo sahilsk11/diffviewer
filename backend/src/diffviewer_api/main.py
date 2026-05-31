@@ -4,8 +4,10 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException
+from starlette.types import Scope
 
 from diffviewer_api.config import Settings, get_settings
 from diffviewer_api.routes import comments, files, health, pull_requests, review_state
@@ -14,6 +16,18 @@ from diffviewer_api.services.github_client import GitHubClient, GitHubError
 from diffviewer_api.services.pull_request_service import PullRequestService
 from diffviewer_api.services.read_state_store import ReadStateStore
 from diffviewer_api.storage.sqlite import connect
+
+DEFAULT_STATIC_DIR = Path(__file__).resolve().parents[3] / "dist"
+
+
+class SinglePageAppStaticFiles(StaticFiles):
+    async def get_response(self, path: str, scope: Scope) -> Response:
+        try:
+            return await super().get_response(path, scope)
+        except HTTPException as exc:
+            if exc.status_code != 404 or path.startswith("api/"):
+                raise
+            return await super().get_response("index.html", scope)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -53,9 +67,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(review_state.router)
     app.include_router(comments.router)
 
-    static_dir = Path(__file__).resolve().parents[3] / "dist"
+    static_dir = DEFAULT_STATIC_DIR
     if static_dir.exists():
-        app.mount("/", StaticFiles(directory=static_dir, html=True), name="static")
+        app.mount("/", SinglePageAppStaticFiles(directory=static_dir, html=True), name="static")
 
     @app.exception_handler(GitHubError)
     async def github_error_handler(  # pyright: ignore[reportUnusedFunction]
