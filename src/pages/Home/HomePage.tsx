@@ -658,7 +658,14 @@ export function HomePage(): React.ReactNode {
   }
 
   return (
-    <section className="grid min-h-screen w-full grid-rows-[3.5rem_minmax(0,1fr)] pb-24">
+    <section
+      className="grid min-h-screen w-full grid-rows-[3.5rem_minmax(0,1fr)] pb-24"
+      style={
+        {
+          '--review-insights-width': '26rem',
+        } as React.CSSProperties
+      }
+    >
       <ReviewHeader
         canShowInsights={pullRequest !== null && canReviewCurrent}
         currentIndex={canReviewCurrent || showReviewComplete ? currentIndex : -1}
@@ -675,7 +682,7 @@ export function HomePage(): React.ReactNode {
       <div
         className={
           isReviewableInsightsOpen
-            ? 'flex min-h-0 flex-1 flex-col gap-4 px-4 transition-[padding] duration-200 ease-out sm:px-6 lg:pr-[27.5rem]'
+            ? 'flex min-h-0 flex-1 flex-col gap-4 px-4 transition-[padding] duration-200 ease-out sm:px-6 lg:pr-[calc(var(--review-insights-width)+1.5rem)]'
             : 'flex min-h-0 flex-1 flex-col gap-4 px-4 transition-[padding] duration-200 ease-out sm:px-6'
         }
       >

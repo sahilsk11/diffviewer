@@ -30,14 +30,14 @@ export function FileInsightsPanel({
     <div
       className={
         isOpen
-          ? 'order-first mt-4 min-h-0 w-full shrink-0 overflow-hidden transition-[height,width,margin,padding,opacity,transform] duration-200 ease-out lg:fixed lg:inset-y-0 lg:right-0 lg:z-20 lg:order-none lg:mt-0 lg:w-[26rem]'
+          ? 'order-first mt-4 min-h-0 w-full shrink-0 overflow-hidden transition-[height,width,margin,padding,opacity,transform] duration-200 ease-out lg:fixed lg:inset-y-0 lg:right-0 lg:z-20 lg:order-none lg:mt-0 lg:w-[var(--review-insights-width)]'
           : 'order-first mt-0 h-0 min-h-0 w-full shrink-0 translate-x-4 overflow-hidden opacity-0 transition-[height,width,margin,padding,opacity,transform] duration-200 ease-out lg:fixed lg:inset-y-0 lg:right-0 lg:z-20 lg:order-none lg:h-screen lg:w-0'
       }
       aria-hidden={!isOpen}
       inert={!isOpen ? true : undefined}
     >
       <aside
-        className="flex min-h-0 w-full flex-col overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30 lg:h-full lg:w-[26rem] lg:rounded-none lg:border-y-0 lg:border-r-0"
+        className="flex min-h-0 w-full flex-col overflow-hidden rounded-lg border border-border-strong bg-card shadow-2xl shadow-black/30 lg:h-full lg:w-[var(--review-insights-width)] lg:rounded-none lg:border-y-0 lg:border-r-0"
         aria-label={isOpen ? 'File insights' : undefined}
       >
         <div className="grid h-14 shrink-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-b border-border bg-background px-3">

@@ -428,10 +428,17 @@ describe('HomePage interactions', () => {
     expect(
       within(insightsPanel).getByText(/Here's what happens in this file/i),
     ).toBeInTheDocument();
+    expect(insightsPanel.parentElement).toHaveClass('lg:w-[var(--review-insights-width)]');
+    expect(screen.getByRole('toolbar', { name: 'Review actions' })).toHaveStyle({
+      '--review-actions-right': 'var(--review-insights-width)',
+    });
 
     await user.click(screen.getByRole('button', { name: 'Hide insights' }));
 
     expect(screen.queryByLabelText('File insights')).not.toBeInTheDocument();
+    expect(screen.getByRole('toolbar', { name: 'Review actions' })).toHaveStyle({
+      '--review-actions-right': '0px',
+    });
     expect(screen.getByRole('button', { name: 'Show insights' })).toBeInTheDocument();
   });
 
