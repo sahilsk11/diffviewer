@@ -15,6 +15,32 @@ afterEach(() => {
 });
 
 describe('diffviewerApi', () => {
+  it('loads pull request recommendations through the typed backend endpoint', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockJsonResponse({
+        recommendations: [
+          {
+            ref: { owner: 'OWNER', repo: 'REPO', pullNumber: 123 },
+            title: 'PR title',
+            htmlUrl: 'https://github.com/OWNER/REPO/pull/123',
+            author: 'login',
+            createdAt: '2026-05-31T10:00:00Z',
+            updatedAt: '2026-05-31T10:30:00Z',
+          },
+        ],
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await diffviewerApi.getPullRequestRecommendations();
+
+    expect(result.recommendations[0]?.ref.pullNumber).toBe(123);
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/pull-requests/recommendations',
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
   it('loads pull requests through the typed backend endpoint', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       mockJsonResponse({

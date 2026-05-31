@@ -7,6 +7,7 @@ import type {
   PostedComment,
   PullRequestDetails,
   PullRequestFilesResponse,
+  PullRequestRecommendationsResponse,
   PullRequestRef,
   RepositoryTree,
   ReviewStateValue,
@@ -18,6 +19,9 @@ function encodeQuery(value: string): string {
 }
 
 export const diffviewerApi = {
+  getPullRequestRecommendations: () =>
+    apiClient.get<PullRequestRecommendationsResponse>('/api/pull-requests/recommendations'),
+
   loadPullRequest: (url: string) =>
     apiClient.post<PullRequestDetails>('/api/pull-requests/load', { url }),
 

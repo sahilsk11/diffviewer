@@ -83,6 +83,146 @@ def test_load_pull_request_route_maps_github_payload(tmp_path: Path) -> None:
 
 
 @respx.mock
+def test_recommendations_route_uses_authenticated_author_search(tmp_path: Path) -> None:
+    respx.get("https://api.github.test/user").mock(
+        return_value=httpx.Response(200, json={"login": "sahilsk11"})
+    )
+    search_route = respx.get("https://api.github.test/search/issues").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "html_url": "https://github.com/sahilsk11/DiffViewer/pull/14",
+                        "title": "Add recommendations",
+                        "number": 14,
+                        "created_at": "2026-05-31T10:00:00Z",
+                        "updated_at": "2026-05-31T10:30:00Z",
+                        "user": {"login": "sahilsk11"},
+                        "pull_request": {},
+                    }
+                ]
+            },
+        )
+    )
+    app = create_app(
+        Settings(
+            github_token="secret-token",
+            github_api_base_url="https://api.github.test",
+            diffviewer_db_path=tmp_path / "test.sqlite3",
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/api/pull-requests/recommendations")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "recommendations": [
+            {
+                "ref": {"owner": "sahilsk11", "repo": "DiffViewer", "pullNumber": 14},
+                "title": "Add recommendations",
+                "htmlUrl": "https://github.com/sahilsk11/DiffViewer/pull/14",
+                "author": "sahilsk11",
+                "createdAt": "2026-05-31T10:00:00Z",
+                "updatedAt": "2026-05-31T10:30:00Z",
+            }
+        ]
+    }
+    assert search_route.calls.last is not None
+    assert search_route.calls.last.request.url.params["q"] == (
+        "is:pr is:open archived:false author:sahilsk11"
+    )
+
+
+@respx.mock
+def test_recommendations_route_uses_configured_repositories(tmp_path: Path) -> None:
+    search_route = respx.get("https://api.github.test/search/issues").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "html_url": "https://github.com/acme/widget/pull/2",
+                        "title": "Newest",
+                        "number": 2,
+                        "created_at": "2026-05-31T11:00:00Z",
+                        "updated_at": "2026-05-31T11:30:00Z",
+                        "user": {"login": "mona"},
+                        "pull_request": {},
+                    }
+                ]
+            },
+        )
+    )
+    app = create_app(
+        Settings(
+            github_api_base_url="https://api.github.test",
+            diffviewer_db_path=tmp_path / "test.sqlite3",
+            diffviewer_recommended_pr_repos_raw="acme/widget",
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/api/pull-requests/recommendations")
+
+    assert response.status_code == 200
+    assert (
+        response.json()["recommendations"][0]["htmlUrl"] == "https://github.com/acme/widget/pull/2"
+    )
+    assert search_route.calls.last is not None
+    assert search_route.calls.last.request.url.params["q"] == (
+        "repo:acme/widget is:pr is:open archived:false"
+    )
+
+
+@respx.mock
+def test_recommendations_route_returns_three_sorted_by_updated_time(tmp_path: Path) -> None:
+    respx.get("https://api.github.test/user").mock(
+        return_value=httpx.Response(200, json={"login": "sahilsk11"})
+    )
+    respx.get("https://api.github.test/search/issues").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "html_url": f"https://github.com/acme/widget/pull/{number}",
+                        "title": f"PR {number}",
+                        "number": number,
+                        "created_at": f"2026-05-2{number}T10:00:00Z",
+                        "updated_at": {
+                            1: "2026-05-31T09:00:00Z",
+                            2: "2026-05-31T12:00:00Z",
+                            3: "2026-05-31T10:00:00Z",
+                            4: "2026-05-31T11:00:00Z",
+                        }[number],
+                        "user": {"login": "sahilsk11"},
+                        "pull_request": {},
+                    }
+                    for number in [1, 2, 3, 4]
+                ]
+            },
+        )
+    )
+    app = create_app(
+        Settings(
+            github_token="secret-token",
+            github_api_base_url="https://api.github.test",
+            diffviewer_db_path=tmp_path / "test.sqlite3",
+        ),
+    )
+
+    with TestClient(app) as client:
+        response = client.get("/api/pull-requests/recommendations")
+
+    assert response.status_code == 200
+    assert [
+        recommendation["ref"]["pullNumber"] for recommendation in response.json()["recommendations"]
+    ] == [2, 4, 3]
+
+
+@respx.mock
 def test_comment_route_maps_single_line_payload(tmp_path: Path) -> None:
     respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123").mock(
         return_value=httpx.Response(

@@ -6,6 +6,9 @@ from fastapi import Request
 from diffviewer_api.services.comment_service import CommentService
 from diffviewer_api.services.file_service import FileService
 from diffviewer_api.services.github_client import GitHubClient
+from diffviewer_api.services.pull_request_recommendation_service import (
+    PullRequestRecommendationService,
+)
 from diffviewer_api.services.pull_request_service import PullRequestService
 from diffviewer_api.services.read_state_store import ReadStateStore
 
@@ -24,6 +27,10 @@ def get_read_state_store(request: Request) -> ReadStateStore:
 
 def get_pull_request_service(request: Request) -> PullRequestService:
     return request.app.state.pull_request_service
+
+
+def get_pull_request_recommendation_service(request: Request) -> PullRequestRecommendationService:
+    return request.app.state.pull_request_recommendation_service
 
 
 def get_file_service(request: Request) -> FileService:

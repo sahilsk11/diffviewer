@@ -2,14 +2,38 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from diffviewer_api.deps import get_pull_request_service
-from diffviewer_api.models.github import PullRequestLoad, PullRequestResponse
+from diffviewer_api.deps import (
+    get_pull_request_recommendation_service,
+    get_pull_request_service,
+)
+from diffviewer_api.models.github import (
+    PullRequestLoad,
+    PullRequestRecommendationsResponse,
+    PullRequestResponse,
+)
+from diffviewer_api.services.pull_request_recommendation_service import (
+    PullRequestRecommendationService,
+)
 from diffviewer_api.services.pull_request_service import (
     PullRequestService,
     PullRequestUrlError,
 )
 
 router = APIRouter(prefix="/api/pull-requests", tags=["pull-requests"])
+
+
+@router.get(
+    "/recommendations",
+    response_model=PullRequestRecommendationsResponse,
+    response_model_by_alias=True,
+)
+async def list_pull_request_recommendations(
+    service: Annotated[
+        PullRequestRecommendationService,
+        Depends(get_pull_request_recommendation_service),
+    ],
+) -> PullRequestRecommendationsResponse:
+    return PullRequestRecommendationsResponse(recommendations=await service.list())
 
 
 @router.post("/load", response_model=PullRequestResponse, response_model_by_alias=True)
