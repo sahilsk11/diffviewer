@@ -1,44 +1,35 @@
-const KEYBOARD_SCROLL_DELTA = 96;
+const DIFF_SCROLL_TARGET_SELECTOR = '[data-diff-scroll-target]';
+const KEYBOARD_SCROLL_LINE_COUNT = 5;
+const FALLBACK_LINE_HEIGHT = 20;
 
-function canScrollVertically(element: HTMLElement): boolean {
-  const { overflowY } = window.getComputedStyle(element);
-  if (overflowY === 'hidden' || overflowY === 'visible' || overflowY === 'clip') return false;
-
-  return element.scrollHeight > element.clientHeight;
+function findScrollTarget(panel: HTMLElement | null): HTMLElement | null {
+  if (panel === null) return null;
+  return (
+    panel.closest<HTMLElement>(DIFF_SCROLL_TARGET_SELECTOR) ??
+    panel.querySelector<HTMLElement>(DIFF_SCROLL_TARGET_SELECTOR)
+  );
 }
 
-function scrollableAncestors(element: HTMLElement): HTMLElement[] {
-  const ancestors: HTMLElement[] = [];
-  let current = element.parentElement;
+function keyboardScrollDelta(target: HTMLElement | null): number {
+  if (target === null) return KEYBOARD_SCROLL_LINE_COUNT * FALLBACK_LINE_HEIGHT;
 
-  while (current !== null) {
-    ancestors.push(current);
-    current = current.parentElement;
+  const lineHeight = Number.parseFloat(window.getComputedStyle(target).lineHeight);
+  if (!Number.isFinite(lineHeight) || lineHeight <= 0) {
+    return KEYBOARD_SCROLL_LINE_COUNT * FALLBACK_LINE_HEIGHT;
   }
 
-  const scrollingElement = document.scrollingElement;
-  if (scrollingElement instanceof HTMLElement && !ancestors.includes(scrollingElement)) {
-    ancestors.push(scrollingElement);
-  }
-
-  return ancestors;
+  return lineHeight * KEYBOARD_SCROLL_LINE_COUNT;
 }
 
 export function scrollDiffPanel(panel: HTMLElement | null, direction: 'down' | 'up'): void {
-  const delta = direction === 'down' ? KEYBOARD_SCROLL_DELTA : -KEYBOARD_SCROLL_DELTA;
-  const scrollableElement =
-    panel === null
-      ? null
-      : [
-          panel,
-          ...panel.querySelectorAll<HTMLElement>('*'),
-          ...scrollableAncestors(panel),
-        ].find(canScrollVertically);
+  const scrollTarget = findScrollTarget(panel);
+  const delta = keyboardScrollDelta(scrollTarget ?? panel);
+  const top = direction === 'down' ? delta : -delta;
 
-  if (scrollableElement === undefined || scrollableElement === null) {
-    window.scrollBy({ top: delta, behavior: 'smooth' });
+  if (scrollTarget === null) {
+    window.scrollBy({ top, behavior: 'smooth' });
     return;
   }
 
-  scrollableElement.scrollBy({ top: delta, behavior: 'smooth' });
+  scrollTarget.scrollBy({ top, behavior: 'smooth' });
 }

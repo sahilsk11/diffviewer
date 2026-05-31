@@ -561,20 +561,24 @@ describe('HomePage', () => {
     const fetchMock = setupTwoFileFetch();
     const scrollBy = vi.fn();
     const user = userEvent.setup();
-    vi.stubGlobal('scrollBy', scrollBy);
     window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
 
     await waitFor(() => {
-      expect(screen.getByRole('heading', { name: 'PR title' })).toBeInTheDocument();
+      expect(document.body).toHaveTextContent('first-right-content');
     });
+    const scrollTarget = document.querySelector<HTMLElement>('[data-diff-scroll-target]');
+    if (scrollTarget === null) {
+      throw new Error('Expected the diff scroll target to render');
+    }
+    scrollTarget.scrollBy = scrollBy;
 
     await user.keyboard('{ArrowUp}');
     await user.keyboard('{ArrowDown}');
 
-    expect(scrollBy).toHaveBeenCalledWith({ behavior: 'smooth', top: -96 });
-    expect(scrollBy).toHaveBeenCalledWith({ behavior: 'smooth', top: 96 });
+    expect(scrollBy).toHaveBeenCalledWith({ behavior: 'smooth', top: -100 });
+    expect(scrollBy).toHaveBeenCalledWith({ behavior: 'smooth', top: 100 });
     expect(fetchMock).not.toHaveBeenCalledWith(
       '/api/repos/OWNER/REPO/pulls/123/files/state',
       expect.anything(),
