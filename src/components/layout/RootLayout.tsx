@@ -50,6 +50,7 @@ export function RootLayout(): React.ReactNode {
             </div>
             <main
               className="min-w-0 lg:h-screen lg:overflow-y-auto"
+              data-diff-scroll-target
               style={
                 {
                   '--review-sidebar-width': isSidebarOpen ? '21rem' : '0px',

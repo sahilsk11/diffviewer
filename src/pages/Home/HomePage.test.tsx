@@ -529,7 +529,7 @@ describe('HomePage', () => {
     expect(startViewTransition).not.toHaveBeenCalled();
   });
 
-  it('maps arrow keys to review navigation actions', async () => {
+  it('uses horizontal arrow keys for file paging without changing review state', async () => {
     const fetchMock = setupTwoFileFetch();
     const user = userEvent.setup();
     window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
@@ -541,6 +541,71 @@ describe('HomePage', () => {
     });
 
     await user.keyboard('{ArrowRight}');
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('second-right-content');
+    });
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/repos/OWNER/REPO/pulls/123/files/state',
+      expect.anything(),
+    );
+
+    await user.keyboard('{ArrowLeft}');
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('first-right-content');
+    });
+  });
+
+  it('uses vertical arrow keys to scroll without changing review state', async () => {
+    const fetchMock = setupTwoFileFetch();
+    const scrollTo = vi.fn();
+    const user = userEvent.setup();
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn(() => 1),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
+
+    renderWithProviders(<App />);
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('first-right-content');
+    });
+    const scrollTarget = document.querySelector<HTMLElement>('[data-diff-scroll-target]');
+    if (scrollTarget === null) {
+      throw new Error('Expected the diff scroll target to render');
+    }
+    scrollTarget.scrollTo = vi.fn((options?: ScrollToOptions | number) => {
+      if (typeof options === 'object') scrollTarget.scrollTop = Number(options.top);
+      scrollTo(options);
+    });
+
+    await user.keyboard('{ArrowUp}');
+    await user.keyboard('{ArrowDown}');
+
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: 'auto', top: -13.333333333333334 });
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: 'auto', top: 0 });
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      '/api/repos/OWNER/REPO/pulls/123/files/state',
+      expect.anything(),
+    );
+  });
+
+  it('preserves letter keys for review navigation actions', async () => {
+    const fetchMock = setupTwoFileFetch();
+    const user = userEvent.setup();
+    window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
+
+    renderWithProviders(<App />);
+
+    await waitFor(() => {
+      expect(document.body).toHaveTextContent('first-right-content');
+    });
+
+    await user.keyboard('s');
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
@@ -555,37 +620,10 @@ describe('HomePage', () => {
       expect(document.body).toHaveTextContent('second-right-content');
     });
 
-    await user.keyboard('{ArrowLeft}');
+    await user.keyboard('z');
 
     await waitFor(() => {
       expect(document.body).toHaveTextContent('first-right-content');
-    });
-
-    await user.keyboard('{ArrowUp}');
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/repos/OWNER/REPO/pulls/123/files/state',
-        expect.objectContaining({
-          body: JSON.stringify({ path: 'src/first.ts', state: 'approved' }),
-          method: 'PUT',
-        }),
-      );
-    });
-    await waitFor(() => {
-      expect(document.body).toHaveTextContent('second-right-content');
-    });
-
-    await user.keyboard('{ArrowDown}');
-
-    await waitFor(() => {
-      expect(fetchMock).toHaveBeenCalledWith(
-        '/api/repos/OWNER/REPO/pulls/123/files/state',
-        expect.objectContaining({
-          body: JSON.stringify({ path: 'src/second.ts', state: 'flagged' }),
-          method: 'PUT',
-        }),
-      );
     });
   });
 });
