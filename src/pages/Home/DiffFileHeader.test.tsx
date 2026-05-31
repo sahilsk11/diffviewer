@@ -25,6 +25,9 @@ describe('DiffFileHeader', () => {
       'w-full',
       'min-w-full',
     );
-    expect(screen.getByText('+35').parentElement).toHaveClass('col-start-3');
+    expect(screen.getByText('+35').parentElement).toHaveClass('justify-end');
+    expect(screen.getByText('+35').parentElement?.previousElementSibling).toHaveClass(
+      'justify-center',
+    );
   });
 });

@@ -31,6 +31,7 @@ import {
   getSelectedCode,
   type CodeExplanation,
 } from '@/pages/Home/insights-data';
+import { REVIEW_INSIGHTS_WIDTH } from '@/pages/Home/review-layout';
 import { ReviewActionBar } from '@/pages/Home/ReviewActionBar';
 import { ReviewDiffPanel } from '@/pages/Home/ReviewDiffPanel';
 import { ReviewHeader } from '@/pages/Home/ReviewHeader';
@@ -662,7 +663,7 @@ export function HomePage(): React.ReactNode {
       className="grid min-h-screen w-full grid-rows-[3.5rem_minmax(0,1fr)] pb-24"
       style={
         {
-          '--review-insights-width': '26rem',
+          '--review-insights-width': REVIEW_INSIGHTS_WIDTH,
         } as React.CSSProperties
       }
     >

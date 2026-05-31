@@ -38,8 +38,10 @@ export function DiffFileHeader({ fileDiff, reviewState }: DiffFileHeaderProps): 
           <bdi>{fileDiff.name}</bdi>
         </span>
       </div>
-      <ReviewStatusChip showLabel state={reviewState} className="h-6 rounded-sm px-2 text-xs" />
-      <div className="col-start-3 flex shrink-0 items-center justify-end gap-2 font-mono text-xs">
+      <div className="flex min-w-0 justify-center">
+        <ReviewStatusChip showLabel state={reviewState} className="h-6 rounded-sm px-2 text-xs" />
+      </div>
+      <div className="flex shrink-0 items-center justify-end gap-2 font-mono text-xs">
         {deletions > 0 || additions === 0 ? (
           <span className="text-danger">-{deletions}</span>
         ) : null}
