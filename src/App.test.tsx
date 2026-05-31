@@ -42,6 +42,27 @@ describe('App', () => {
     expect(window.location.pathname).toBe('/');
   });
 
+  it('redirects the diff route to the landing page when the URL parameter is invalid', () => {
+    window.history.replaceState(null, '', '/diff?pr=not-a-pull-request');
+
+    renderWithProviders(<App />);
+
+    expect(screen.getByText('Put a URL in to get started.')).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/');
+  });
+
+  it('redirects the landing page to the diff route when a PR URL parameter is present', () => {
+    window.history.replaceState(null, '', '/?pr=github.com/OWNER/REPO/pull/123');
+
+    renderWithProviders(<App />);
+
+    expect(window.location.pathname).toBe('/diff');
+    expect(new URLSearchParams(window.location.search).get('pr')).toBe(
+      'https://github.com/OWNER/REPO/pull/123',
+    );
+    expect(screen.queryByLabelText('GitHub pull request URL')).not.toBeInTheDocument();
+  });
+
   it('defaults to split diff layout', async () => {
     const user = userEvent.setup();
     window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
