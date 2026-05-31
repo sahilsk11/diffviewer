@@ -11,6 +11,9 @@ from diffviewer_api.config import Settings, get_settings
 from diffviewer_api.routes import comments, files, health, pull_requests, review_state
 from diffviewer_api.services.file_service import FileService
 from diffviewer_api.services.github_client import GitHubClient, GitHubError
+from diffviewer_api.services.pull_request_recommendation_service import (
+    PullRequestRecommendationService,
+)
 from diffviewer_api.services.pull_request_service import PullRequestService
 from diffviewer_api.services.read_state_store import ReadStateStore
 from diffviewer_api.storage.sqlite import connect
@@ -32,6 +35,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.pull_request_service = PullRequestService(
             github_client,
             ReadStateStore(db_connection),
+        )
+        app.state.pull_request_recommendation_service = PullRequestRecommendationService(
+            github_client,
+            resolved_settings.diffviewer_recommended_pr_repos,
         )
         try:
             yield

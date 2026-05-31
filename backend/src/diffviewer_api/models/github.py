@@ -28,3 +28,18 @@ class PullRequestResponse(BaseModel):
     read_state: ReadState = Field(serialization_alias="readState")
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class PullRequestRecommendation(BaseModel):
+    ref: PullRequestRef
+    title: str
+    html_url: str = Field(serialization_alias="htmlUrl")
+    author: str
+    created_at: str = Field(serialization_alias="createdAt")
+    updated_at: str = Field(serialization_alias="updatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class PullRequestRecommendationsResponse(BaseModel):
+    recommendations: list[PullRequestRecommendation]

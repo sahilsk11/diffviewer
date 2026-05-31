@@ -31,6 +31,10 @@ class GitHubClient:
             await self._client.aclose()
 
     @property
+    def is_authenticated(self) -> bool:
+        return self._token is not None
+
+    @property
     def headers(self) -> dict[str, str]:
         headers = {
             "Accept": "application/vnd.github+json",
@@ -42,6 +46,28 @@ class GitHubClient:
 
     async def get_pull_request(self, owner: str, repo: str, pull_number: int) -> dict[str, Any]:
         return await self._request("GET", f"/repos/{owner}/{repo}/pulls/{pull_number}")
+
+    async def get_authenticated_user(self) -> dict[str, Any]:
+        return await self._request("GET", "/user")
+
+    async def search_pull_requests(self, query: str, *, limit: int) -> list[dict[str, Any]]:
+        payload = await self._request(
+            "GET",
+            "/search/issues",
+            params={
+                "q": query,
+                "sort": "updated",
+                "order": "desc",
+                "per_page": min(max(limit, 1), 100),
+            },
+        )
+        if not isinstance(payload, dict) or not isinstance(payload.get("items"), list):
+            raise GitHubError(
+                "GitHub returned an unexpected search response.",
+                status_code=502,
+                code="github_unexpected_response",
+            )
+        return payload["items"]
 
     async def list_pull_request_files(
         self,

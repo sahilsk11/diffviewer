@@ -49,6 +49,27 @@ async def test_pull_request_file_pagination() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_search_pull_requests_returns_items() -> None:
+    route = respx.get("https://api.github.test/search/issues").mock(
+        return_value=httpx.Response(200, json={"items": [{"number": 14}]})
+    )
+    client = GitHubClient(base_url="https://api.github.test", token=None)
+
+    try:
+        items = await client.search_pull_requests("is:pr is:open author:octocat", limit=6)
+    finally:
+        await client.close()
+
+    assert items == [{"number": 14}]
+    assert route.calls.last is not None
+    assert route.calls.last.request.url.params["q"] == "is:pr is:open author:octocat"
+    assert route.calls.last.request.url.params["sort"] == "updated"
+    assert route.calls.last.request.url.params["order"] == "desc"
+    assert route.calls.last.request.url.params["per_page"] == "6"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_github_validation_error_is_normalized() -> None:
     respx.post("https://api.github.test/repos/acme/widget/pulls/1/comments").mock(
         return_value=httpx.Response(422, json={"message": "Validation Failed", "errors": []}),

@@ -22,6 +22,7 @@ function stubDesktopBreakpoint(matches: boolean): void {
 
 afterEach(() => {
   window.matchMedia = originalMatchMedia;
+  vi.unstubAllGlobals();
 });
 
 describe('App', () => {
@@ -31,6 +32,37 @@ describe('App', () => {
     expect(screen.getByText('Put a URL in to get started.')).toBeInTheDocument();
     expect(screen.getByLabelText('GitHub pull request URL')).toBeInTheDocument();
     expect(screen.queryByLabelText('Pull request diff')).not.toBeInTheDocument();
+  });
+
+  it('opens a recommended pull request from the landing page', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            recommendations: [
+              {
+                ref: { owner: 'sahilsk11', repo: 'DiffViewer', pullNumber: 14 },
+                title: 'Add recommendation chips',
+                htmlUrl: 'https://github.com/sahilsk11/DiffViewer/pull/14',
+                author: 'sahilsk11',
+                createdAt: '2026-05-31T10:00:00Z',
+                updatedAt: '2026-05-31T10:30:00Z',
+              },
+            ],
+          }),
+          { headers: { 'Content-Type': 'application/json' }, status: 200 },
+        ),
+      ),
+    );
+    renderWithProviders(<App />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'sahilsk11/DiffViewer #14' }));
+
+    expect(window.location.pathname).toBe('/diff');
+    expect(new URLSearchParams(window.location.search).get('pr')).toBe(
+      'https://github.com/sahilsk11/DiffViewer/pull/14',
+    );
   });
 
   it('redirects the diff route to the landing page when no URL is loaded', () => {

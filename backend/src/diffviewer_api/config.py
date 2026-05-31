@@ -109,6 +109,10 @@ class Settings(BaseSettings):
         default="http://localhost:3000",
         validation_alias="DIFFVIEWER_CORS_ORIGINS",
     )
+    diffviewer_recommended_pr_repos_raw: str = Field(
+        default="",
+        validation_alias="DIFFVIEWER_RECOMMENDED_PR_REPOS",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
@@ -139,6 +143,13 @@ class Settings(BaseSettings):
             return "http://localhost:3000"
         return value
 
+    @field_validator("diffviewer_recommended_pr_repos_raw", mode="before")
+    @classmethod
+    def none_recommended_pr_repos_as_empty(cls, value: object) -> object:
+        if value is None:
+            return ""
+        return value
+
     @computed_field
     @property
     def diffviewer_cors_origins(self) -> list[str]:
@@ -146,6 +157,15 @@ class Settings(BaseSettings):
             origin.strip()
             for origin in self.diffviewer_cors_origins_raw.split(",")
             if origin.strip()
+        ]
+
+    @computed_field
+    @property
+    def diffviewer_recommended_pr_repos(self) -> list[str]:
+        return [
+            repo.strip()
+            for repo in self.diffviewer_recommended_pr_repos_raw.split(",")
+            if repo.strip()
         ]
 
     @property

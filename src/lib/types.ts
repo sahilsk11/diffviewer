@@ -37,6 +37,19 @@ export interface PullRequestDetails {
   readState: ReadState;
 }
 
+export interface PullRequestRecommendation {
+  ref: PullRequestRef;
+  title: string;
+  htmlUrl: string;
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PullRequestRecommendationsResponse {
+  recommendations: PullRequestRecommendation[];
+}
+
 export interface PullRequestFilesResponse {
   files: PullRequestFile[];
 }
