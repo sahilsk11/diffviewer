@@ -28,10 +28,12 @@ export function ReviewActionBar({
 }: ReviewActionBarProps): React.ReactNode {
   return (
     <div
+      aria-label="Review actions"
       className="diff-actions-transition-surface fixed inset-x-0 bottom-0 z-30 border-t border-border bg-background px-4 py-3 shadow-2xl shadow-black/40 lg:left-[var(--review-sidebar-width)] lg:right-[var(--review-actions-right)]"
+      role="toolbar"
       style={
         {
-          '--review-actions-right': isInsightsOpen ? '21rem' : '0px',
+          '--review-actions-right': isInsightsOpen ? 'var(--review-insights-width)' : '0px',
         } as CSSProperties
       }
     >

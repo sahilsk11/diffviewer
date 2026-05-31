@@ -23,7 +23,7 @@ export function DiffFileHeader({ fileDiff, reviewState }: DiffFileHeaderProps): 
   const { additions, deletions } = countChangedLines(fileDiff);
 
   return (
-    <div className="grid min-h-11 grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 bg-background px-4 font-sans">
+    <div className="grid min-h-11 w-full min-w-full grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-3 bg-background px-4 font-sans">
       <div className="flex min-w-0 items-center gap-2">
         <span className="size-3 shrink-0 rounded-[3px] border-2 border-accent" aria-hidden />
         {fileDiff.prevName !== undefined ? (
@@ -38,7 +38,9 @@ export function DiffFileHeader({ fileDiff, reviewState }: DiffFileHeaderProps): 
           <bdi>{fileDiff.name}</bdi>
         </span>
       </div>
-      <ReviewStatusChip showLabel state={reviewState} className="h-6 rounded-sm px-2 text-xs" />
+      <div className="flex min-w-0 justify-center">
+        <ReviewStatusChip showLabel state={reviewState} className="h-6 rounded-sm px-2 text-xs" />
+      </div>
       <div className="flex shrink-0 items-center justify-end gap-2 font-mono text-xs">
         {deletions > 0 || additions === 0 ? (
           <span className="text-danger">-{deletions}</span>
