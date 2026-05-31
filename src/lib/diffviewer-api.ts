@@ -1,8 +1,11 @@
 import { apiClient } from '@/lib/api';
 import { pullRequestPath } from '@/lib/github-pr';
 import type {
+  CodeExplanation,
+  CodeExplanationRequest,
   CommentCreate,
   FileContentsResponse,
+  FileInsightsResponse,
   FileSide,
   PostedComment,
   PullRequestDetails,
@@ -57,4 +60,16 @@ export const diffviewerApi = {
 
   postComment: (ref: PullRequestRef, comment: CommentCreate) =>
     apiClient.post<PostedComment>(`${pullRequestPath(ref)}/comments`, comment),
+
+  generateFileInsights: (
+    ref: PullRequestRef,
+    revision: Pick<PullRequestDetails, 'baseSha' | 'headSha'>,
+  ) =>
+    apiClient.post<FileInsightsResponse>(`${pullRequestPath(ref)}/insights/files`, {
+      baseSha: revision.baseSha,
+      headSha: revision.headSha,
+    }),
+
+  explainCodeSelection: (ref: PullRequestRef, payload: CodeExplanationRequest) =>
+    apiClient.post<CodeExplanation>(`${pullRequestPath(ref)}/insights/explain`, payload),
 };

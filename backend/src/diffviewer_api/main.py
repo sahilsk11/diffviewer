@@ -10,9 +10,11 @@ from starlette.exceptions import HTTPException
 from starlette.types import Scope
 
 from diffviewer_api.config import Settings, get_settings
-from diffviewer_api.routes import comments, files, health, pull_requests, review_state
+from diffviewer_api.routes import comments, files, health, insights, pull_requests, review_state
 from diffviewer_api.services.file_service import FileService
 from diffviewer_api.services.github_client import GitHubClient, GitHubError
+from diffviewer_api.services.insight_provider import CodexCliInsightProvider, InsightProvider
+from diffviewer_api.services.insight_service import InsightService
 from diffviewer_api.services.pull_request_recommendation_service import (
     PullRequestRecommendationService,
 )
@@ -33,7 +35,10 @@ class SinglePageAppStaticFiles(StaticFiles):
             return await super().get_response("index.html", scope)
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    insight_provider: InsightProvider | None = None,
+) -> FastAPI:
     resolved_settings = settings or get_settings()
 
     @asynccontextmanager
@@ -53,9 +58,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.pull_request_recommendation_service = PullRequestRecommendationService(
             github_client,
         )
+        resolved_insight_provider = insight_provider or CodexCliInsightProvider(
+            command=resolved_settings.codex_cli_command,
+            model=resolved_settings.codex_model,
+            timeout_seconds=resolved_settings.codex_timeout_seconds,
+        )
+        app.state.insight_provider = resolved_insight_provider
+        app.state.insight_service = InsightService(
+            pull_requests=app.state.pull_request_service,
+            files=app.state.file_service,
+            provider=resolved_insight_provider,
+        )
         try:
             yield
         finally:
+            await resolved_insight_provider.close()
             await github_client.close()
             db_connection.close()
 
@@ -70,6 +87,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router)
     app.include_router(pull_requests.router)
     app.include_router(files.router)
+    app.include_router(insights.router)
     app.include_router(review_state.router)
     app.include_router(comments.router)
 

@@ -109,12 +109,25 @@ class Settings(BaseSettings):
         default="http://localhost:3000",
         validation_alias="DIFFVIEWER_CORS_ORIGINS",
     )
+    codex_cli_command: str = Field(default="codex", validation_alias="CODEX_CLI_COMMAND")
+    codex_model: str | None = Field(default=None, validation_alias="CODEX_MODEL")
+    codex_timeout_seconds: float = Field(
+        default=120.0,
+        validation_alias="CODEX_TIMEOUT_SECONDS",
+    )
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     @field_validator("github_token", mode="before")
     @classmethod
     def empty_token_as_none(cls, value: object) -> object:
+        if value == "":
+            return None
+        return value
+
+    @field_validator("codex_model", mode="before")
+    @classmethod
+    def empty_codex_model_as_none(cls, value: object) -> object:
         if value == "":
             return None
         return value

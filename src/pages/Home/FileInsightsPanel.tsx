@@ -2,28 +2,37 @@ import { PanelRightClose, Sparkles } from 'lucide-react';
 import ReactMarkdown, { type Components } from 'react-markdown';
 
 import { Button } from '@/components/ui/button';
-import { type PullRequestFile } from '@/lib/types';
-import { type CodeExplanation, type FileInsight } from '@/pages/Home/insights-data';
+import { type CodeExplanation, type FileInsight, type PullRequestFile } from '@/lib/types';
 
 export type InsightsPanelTab = 'summary' | 'explainer';
 
 interface FileInsightsPanelProps {
   activeTab: InsightsPanelTab;
   explanation: CodeExplanation | null;
+  explanationError: string | null;
   file: PullRequestFile | null;
   insight: FileInsight | null;
+  insightError: string | null;
+  isExplanationLoading: boolean;
+  isInsightLoading: boolean;
   isOpen: boolean;
   onClose: () => void;
+  onGenerateInsight: () => void;
   onTabChange: (tab: InsightsPanelTab) => void;
 }
 
 export function FileInsightsPanel({
   activeTab,
   explanation,
+  explanationError,
   file,
   insight,
+  insightError,
+  isExplanationLoading,
+  isInsightLoading,
   isOpen,
   onClose,
+  onGenerateInsight,
   onTabChange,
 }: FileInsightsPanelProps): React.ReactNode {
   return (
@@ -75,35 +84,23 @@ export function FileInsightsPanel({
               Code Explainer
             </Button>
           </div>
-          {file === null || insight === null ? (
+          {file === null ? (
             <p className="text-sm leading-6 text-muted-foreground">
               Select a changed file to see its summary and review notes.
             </p>
           ) : activeTab === 'explainer' ? (
-            <CodeExplainer explanation={explanation} />
+            <CodeExplainer
+              error={explanationError}
+              explanation={explanation}
+              isLoading={isExplanationLoading}
+            />
           ) : (
-            <div className="space-y-3">
-              <section
-                className="rounded-md border border-border-strong bg-elevated px-4 py-3"
-                aria-label="File summary"
-              >
-                <MarkdownText value={insight.summary} />
-              </section>
-
-              <section className="space-y-3 rounded-md border border-border-strong bg-elevated px-4 py-3">
-                <h3 className="text-xs font-semibold uppercase text-subtle-foreground">
-                  Things to look out for
-                </h3>
-                <ul className="space-y-2">
-                  {insight.watchOuts.map((watchOut) => (
-                    <li key={watchOut} className="flex gap-2 text-sm leading-6 text-foreground">
-                      <span className="mt-2 size-1.5 shrink-0 rounded-full bg-warn" />
-                      <MarkdownText value={watchOut} />
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            </div>
+            <FileSummary
+              error={insightError}
+              insight={insight}
+              isLoading={isInsightLoading}
+              onGenerate={onGenerateInsight}
+            />
           )}
         </div>
       </aside>
@@ -156,7 +153,83 @@ function MarkdownText({ value }: { value: string }): React.ReactNode {
   );
 }
 
-function CodeExplainer({ explanation }: { explanation: CodeExplanation | null }): React.ReactNode {
+function FileSummary({
+  error,
+  insight,
+  isLoading,
+  onGenerate,
+}: {
+  error: string | null;
+  insight: FileInsight | null;
+  isLoading: boolean;
+  onGenerate: () => void;
+}): React.ReactNode {
+  if (insight === null) {
+    return (
+      <div className="space-y-3">
+        <p className="text-sm leading-6 text-muted-foreground">
+          Generate summaries for every file in this pull request.
+        </p>
+        {error !== null ? (
+          <p className="text-sm leading-6 text-danger" role="alert">
+            {error}
+          </p>
+        ) : null}
+        <Button size="sm" onClick={onGenerate} disabled={isLoading}>
+          <Sparkles className="size-4" />
+          {isLoading ? 'Generating...' : 'Generate file summary'}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <section
+        className="rounded-md border border-border-strong bg-elevated px-4 py-3"
+        aria-label="File summary"
+      >
+        <MarkdownText value={insight.summary} />
+      </section>
+
+      <section className="space-y-3 rounded-md border border-border-strong bg-elevated px-4 py-3">
+        <h3 className="text-xs font-semibold uppercase text-subtle-foreground">
+          Things to look out for
+        </h3>
+        <ul className="space-y-2">
+          {insight.watchOuts.map((watchOut) => (
+            <li key={watchOut} className="flex gap-2 text-sm leading-6 text-foreground">
+              <span className="mt-2 size-1.5 shrink-0 rounded-full bg-warn" />
+              <MarkdownText value={watchOut} />
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
+
+function CodeExplainer({
+  error,
+  explanation,
+  isLoading,
+}: {
+  error: string | null;
+  explanation: CodeExplanation | null;
+  isLoading: boolean;
+}): React.ReactNode {
+  if (isLoading) {
+    return <p className="text-sm leading-6 text-muted-foreground">Explaining selection...</p>;
+  }
+
+  if (error !== null) {
+    return (
+      <p className="text-sm leading-6 text-danger" role="alert">
+        {error}
+      </p>
+    );
+  }
+
   if (explanation === null) {
     return <p className="text-sm leading-6 text-muted-foreground">Select text to get started.</p>;
   }
