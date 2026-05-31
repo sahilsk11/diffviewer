@@ -559,8 +559,17 @@ describe('HomePage', () => {
 
   it('uses vertical arrow keys to scroll without changing review state', async () => {
     const fetchMock = setupTwoFileFetch();
-    const scrollBy = vi.fn();
+    const scrollTo = vi.fn();
     const user = userEvent.setup();
+    vi.spyOn(performance, 'now').mockReturnValue(0);
+    vi.stubGlobal(
+      'requestAnimationFrame',
+      vi.fn((callback: FrameRequestCallback) => {
+        callback(180);
+        return 1;
+      }),
+    );
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
     window.history.replaceState(null, '', '/diff?pr=github.com/OWNER/REPO/pull/123');
 
     renderWithProviders(<App />);
@@ -572,13 +581,13 @@ describe('HomePage', () => {
     if (scrollTarget === null) {
       throw new Error('Expected the diff scroll target to render');
     }
-    scrollTarget.scrollBy = scrollBy;
+    scrollTarget.scrollTo = scrollTo;
 
     await user.keyboard('{ArrowUp}');
     await user.keyboard('{ArrowDown}');
 
-    expect(scrollBy).toHaveBeenCalledWith({ behavior: 'smooth', top: -100 });
-    expect(scrollBy).toHaveBeenCalledWith({ behavior: 'smooth', top: 100 });
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: 'auto', top: -160 });
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: 'auto', top: 160 });
     expect(fetchMock).not.toHaveBeenCalledWith(
       '/api/repos/OWNER/REPO/pulls/123/files/state',
       expect.anything(),
