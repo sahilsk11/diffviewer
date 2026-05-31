@@ -5,17 +5,28 @@ import { normalizeGitHubPullRequestUrl, parseGitHubPullRequestUrl } from '@/lib/
 import { HomePage } from '@/pages/Home/HomePage';
 import { LandingPage } from '@/pages/Landing/LandingPage';
 
-function hasLoadablePullRequestUrl(search: string): boolean {
+function loadablePullRequestUrl(search: string): string | null {
   const prParam = new URLSearchParams(search).get('pr');
-  if (prParam === null) return false;
+  if (prParam === null) return null;
   const normalizedUrl = normalizeGitHubPullRequestUrl(prParam);
-  return parseGitHubPullRequestUrl(normalizedUrl) !== null;
+  return parseGitHubPullRequestUrl(normalizedUrl) === null ? null : normalizedUrl;
+}
+
+function LandingRoute(): React.ReactNode {
+  const location = useLocation();
+  const normalizedUrl = loadablePullRequestUrl(location.search);
+
+  if (normalizedUrl !== null) {
+    return <Navigate to={`/diff?pr=${encodeURIComponent(normalizedUrl)}`} replace />;
+  }
+
+  return <LandingPage />;
 }
 
 function DiffRoute(): React.ReactNode {
   const location = useLocation();
 
-  if (!hasLoadablePullRequestUrl(location.search)) {
+  if (loadablePullRequestUrl(location.search) === null) {
     return <Navigate to="/" replace />;
   }
 
@@ -26,7 +37,7 @@ function DiffRoute(): React.ReactNode {
 function App() {
   return (
     <Routes>
-      <Route index element={<LandingPage />} />
+      <Route index element={<LandingRoute />} />
       <Route element={<RootLayout />}>
         <Route path="diff" element={<DiffRoute />} />
       </Route>
