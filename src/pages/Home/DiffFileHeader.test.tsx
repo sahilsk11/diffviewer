@@ -17,16 +17,14 @@ describe('DiffFileHeader', () => {
       ],
     } as FileDiffMetadata;
 
-    render(
-      <DiffFileHeader
-        fileDiff={addedFileDiff}
-        reviewState="unreviewed"
-      />,
-    );
+    render(<DiffFileHeader fileDiff={addedFileDiff} reviewState="unreviewed" />);
 
     expect(screen.getByText('+35')).toBeInTheDocument();
     expect(screen.queryByText('-0')).not.toBeInTheDocument();
-    expect(screen.getByText('src/new-file.ts').closest('.grid')).toHaveClass('w-full', 'min-w-full');
+    expect(screen.getByText('src/new-file.ts').closest('.grid')).toHaveClass(
+      'w-full',
+      'min-w-full',
+    );
     expect(screen.getByText('+35').parentElement).toHaveClass('col-start-3');
   });
 });
