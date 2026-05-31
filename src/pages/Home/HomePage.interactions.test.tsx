@@ -168,7 +168,7 @@ function setupFetch({
         json({
           baseSha: 'base_sha',
           headSha: 'head_sha',
-          provider: 'local',
+          provider: 'codex',
           insights: [
             {
               path,

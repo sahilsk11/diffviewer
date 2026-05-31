@@ -108,7 +108,7 @@ export interface FileInsight {
 export interface FileInsightsResponse {
   baseSha: string;
   headSha: string;
-  provider: 'local' | 'openai';
+  provider: 'codex';
   insights: FileInsight[];
 }
 

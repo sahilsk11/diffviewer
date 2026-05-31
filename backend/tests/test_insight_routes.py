@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from pathlib import Path
 
 import httpx
@@ -6,6 +7,43 @@ from fastapi.testclient import TestClient
 
 from diffviewer_api.config import Settings
 from diffviewer_api.main import create_app
+from diffviewer_api.models.files import PullRequestFile
+from diffviewer_api.models.insights import CodeExplanation, FileInsight, InsightProviderName
+from diffviewer_api.services.insight_provider import ExplanationPayload, InsightGenerationError
+
+
+class FakeInsightProvider:
+    @property
+    def name(self) -> InsightProviderName:
+        return InsightProviderName.codex
+
+    async def file_insights(self, files: Sequence[PullRequestFile]) -> list[FileInsight]:
+        return [
+            FileInsight(
+                path=file.path,
+                summary=f"Generated summary for {file.path}.",
+                watch_outs=[f"Review {file.path}."],
+            )
+            for file in files
+        ]
+
+    async def code_explanation(self, payload: ExplanationPayload) -> CodeExplanation:
+        return CodeExplanation(
+            label=f"{payload.path} lines {payload.start_line}-{payload.end_line}",
+            selected_code=payload.selected_code,
+            text=f"Generated explanation for {payload.path}.",
+        )
+
+    async def close(self) -> None:
+        return None
+
+
+class FailingInsightProvider(FakeInsightProvider):
+    async def file_insights(self, files: Sequence[PullRequestFile]) -> list[FileInsight]:
+        raise InsightGenerationError(
+            "Codex failed to generate insights.",
+            code="codex_failed",
+        )
 
 
 def pull_request_payload(
@@ -45,6 +83,7 @@ def test_generate_file_insights_route_returns_cached_batch(tmp_path: Path) -> No
             github_api_base_url="https://api.github.test",
             diffviewer_db_path=tmp_path / "test.sqlite3",
         ),
+        insight_provider=FakeInsightProvider(),
     )
 
     with TestClient(app) as client:
@@ -60,9 +99,50 @@ def test_generate_file_insights_route_returns_cached_batch(tmp_path: Path) -> No
     assert first.status_code == 200
     assert second.status_code == 200
     assert first.json() == second.json()
-    assert first.json()["provider"] == "local"
+    assert first.json()["provider"] == "codex"
     assert first.json()["insights"][0]["path"] == "src/example.ts"
     assert len(files_route.calls) == 1
+
+
+@respx.mock
+def test_generate_file_insights_route_returns_provider_error(tmp_path: Path) -> None:
+    respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123").mock(
+        return_value=httpx.Response(200, json=pull_request_payload()),
+    )
+    respx.get("https://api.github.test/repos/OWNER/REPO/pulls/123/files").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "filename": "src/example.ts",
+                    "status": "modified",
+                    "additions": 2,
+                    "deletions": 1,
+                    "changes": 3,
+                    "patch": "@@ ...",
+                },
+            ],
+        ),
+    )
+    app = create_app(
+        Settings(
+            github_api_base_url="https://api.github.test",
+            diffviewer_db_path=tmp_path / "test.sqlite3",
+        ),
+        insight_provider=FailingInsightProvider(),
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/repos/OWNER/REPO/pulls/123/insights/files",
+            json={"baseSha": "base_sha", "headSha": "head_sha"},
+        )
+
+    assert response.status_code == 502
+    assert response.json()["detail"] == {
+        "error": "Codex failed to generate insights.",
+        "code": "codex_failed",
+    }
 
 
 @respx.mock
@@ -81,6 +161,7 @@ def test_generate_file_insights_route_rejects_stale_revision(tmp_path: Path) -> 
             github_api_base_url="https://api.github.test",
             diffviewer_db_path=tmp_path / "test.sqlite3",
         ),
+        insight_provider=FakeInsightProvider(),
     )
 
     with TestClient(app) as client:
@@ -114,6 +195,7 @@ def test_explain_code_route_uses_selected_code_without_loading_contents(tmp_path
             github_api_base_url="https://api.github.test",
             diffviewer_db_path=tmp_path / "test.sqlite3",
         ),
+        insight_provider=FakeInsightProvider(),
     )
 
     with TestClient(app) as client:
@@ -168,6 +250,7 @@ def test_explain_code_route_reads_file_contents_when_selection_missing(tmp_path:
             github_api_base_url="https://api.github.test",
             diffviewer_db_path=tmp_path / "test.sqlite3",
         ),
+        insight_provider=FakeInsightProvider(),
     )
 
     with TestClient(app) as client:

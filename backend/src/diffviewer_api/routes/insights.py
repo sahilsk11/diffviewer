@@ -9,6 +9,7 @@ from diffviewer_api.models.insights import (
     FileInsightsGenerateRequest,
     FileInsightsResponse,
 )
+from diffviewer_api.services.insight_provider import InsightGenerationError
 from diffviewer_api.services.insight_service import InsightService, StalePullRequestRevisionError
 
 router = APIRouter(prefix="/api/repos/{owner}/{repo}/pulls/{pull_number}", tags=["insights"])
@@ -40,6 +41,11 @@ async def generate_file_insights(
         return await service.file_insights(owner, repo, pull_number, payload)
     except StalePullRequestRevisionError as error:
         raise stale_pull_request_error(error) from error
+    except InsightGenerationError as error:
+        raise HTTPException(
+            status_code=error.status_code,
+            detail={"error": error.message, "code": error.code},
+        ) from error
 
 
 @router.post("/insights/explain", response_model=CodeExplanation, response_model_by_alias=True)
@@ -54,3 +60,8 @@ async def explain_code(
         return await service.explain_code(owner, repo, pull_number, payload)
     except StalePullRequestRevisionError as error:
         raise stale_pull_request_error(error) from error
+    except InsightGenerationError as error:
+        raise HTTPException(
+            status_code=error.status_code,
+            detail={"error": error.message, "code": error.code},
+        ) from error

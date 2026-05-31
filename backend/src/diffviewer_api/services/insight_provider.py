@@ -1,9 +1,12 @@
+import asyncio
 import json
-from collections.abc import Mapping, Sequence
+import shutil
+import tempfile
+from collections.abc import Sequence
+from pathlib import Path
 from typing import Any, Protocol
 
-import httpx
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from diffviewer_api.models.files import PullRequestFile
 from diffviewer_api.models.insights import CodeExplanation, FileInsight, InsightProviderName
@@ -24,6 +27,18 @@ FILE_INSIGHT_SCHEMA: dict[str, Any] = {
     "required": ["path", "summary", "watchOuts"],
 }
 
+FILE_INSIGHTS_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "insights": {
+            "type": "array",
+            "items": FILE_INSIGHT_SCHEMA,
+        },
+    },
+    "required": ["insights"],
+}
+
 CODE_EXPLANATION_SCHEMA: dict[str, Any] = {
     "type": "object",
     "additionalProperties": False,
@@ -34,6 +49,14 @@ CODE_EXPLANATION_SCHEMA: dict[str, Any] = {
     },
     "required": ["label", "selectedCode", "text"],
 }
+
+
+class InsightGenerationError(Exception):
+    def __init__(self, message: str, *, code: str, status_code: int = 502) -> None:
+        super().__init__(message)
+        self.message = message
+        self.code = code
+        self.status_code = status_code
 
 
 class FileInsightPayload(BaseModel):
@@ -60,7 +83,7 @@ class InsightProvider(Protocol):
     def name(self) -> InsightProviderName:
         raise NotImplementedError
 
-    async def file_insight(self, file: PullRequestFile) -> FileInsight:
+    async def file_insights(self, files: Sequence[PullRequestFile]) -> list[FileInsight]:
         raise NotImplementedError
 
     async def code_explanation(self, payload: ExplanationPayload) -> CodeExplanation:
@@ -70,165 +93,151 @@ class InsightProvider(Protocol):
         raise NotImplementedError
 
 
-class LocalInsightProvider:
+class CodexCliInsightProvider:
+    def __init__(
+        self,
+        *,
+        command: str = "codex",
+        model: str | None = None,
+        timeout_seconds: float = 120.0,
+        workdir: Path | None = None,
+    ) -> None:
+        self._command = command
+        self._model = model
+        self._timeout_seconds = timeout_seconds
+        self._workdir = workdir or Path.cwd()
+
     @property
     def name(self) -> InsightProviderName:
-        return InsightProviderName.local
-
-    async def file_insight(self, file: PullRequestFile) -> FileInsight:
-        summary = (
-            f"{file.path} is a {file.status} file with {file.changes} changed lines: "
-            f"{file.additions} additions and {file.deletions} deletions."
-        )
-        return FileInsight(
-            path=file.path,
-            summary=summary,
-            watch_outs=[
-                f"Review the {file.status} file path and change shape.",
-                "Check whether neighboring files need matching updates.",
-                "Verify the changed behavior is covered by focused tests.",
-            ],
-        )
-
-    async def code_explanation(self, payload: ExplanationPayload) -> CodeExplanation:
-        line_label = (
-            f"line {payload.start_line}"
-            if payload.start_line == payload.end_line
-            else f"lines {payload.start_line}-{payload.end_line}"
-        )
-        text = (
-            f"This selection covers {line_label} on {payload.side} in {payload.path}. "
-            "Read it against the surrounding diff to confirm the behavior change and any "
-            "related tests or call sites."
-        )
-        return CodeExplanation(
-            label=f"{payload.path} {line_label}",
-            selected_code=payload.selected_code,
-            text=text,
-        )
+        return InsightProviderName.codex
 
     async def close(self) -> None:
         return None
 
-
-class OpenAIInsightProvider:
-    def __init__(
-        self,
-        *,
-        api_key: str,
-        model: str,
-        base_url: str,
-        client: httpx.AsyncClient | None = None,
-    ) -> None:
-        self._api_key = api_key
-        self._model = model
-        self._owns_client = client is None
-        self._client = client or httpx.AsyncClient(base_url=base_url.rstrip("/"), timeout=45.0)
-
-    @property
-    def name(self) -> InsightProviderName:
-        return InsightProviderName.openai
-
-    async def close(self) -> None:
-        if self._owns_client:
-            await self._client.aclose()
-
-    async def file_insight(self, file: PullRequestFile) -> FileInsight:
-        payload = FileInsightPayload(
-            path=file.path,
-            status=file.status,
-            additions=file.additions,
-            deletions=file.deletions,
-            changes=file.changes,
-            patch=file.patch,
-        )
+    async def file_insights(self, files: Sequence[PullRequestFile]) -> list[FileInsight]:
+        payload = [
+            FileInsightPayload(
+                path=file.path,
+                status=file.status,
+                additions=file.additions,
+                deletions=file.deletions,
+                changes=file.changes,
+                patch=file.patch,
+            ).model_dump()
+            for file in files
+        ]
         data = await self._structured_response(
-            name="file_insight",
-            schema=FILE_INSIGHT_SCHEMA,
-            input_messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Generate concise pull request review insight JSON. "
-                        "Be specific to the supplied diff metadata and patch. "
-                        "Do not invent behavior not evidenced by the patch."
-                    ),
-                },
-                {"role": "user", "content": payload.model_dump_json()},
-            ],
+            schema=FILE_INSIGHTS_SCHEMA,
+            prompt=(
+                "Generate concise pull request review insights as JSON for each changed file.\n"
+                "Return exactly one insight per input file, preserving each path.\n"
+                "Be specific to the supplied diff metadata and patch. Do not use generic advice.\n"
+                "Do not invent behavior not evidenced by the patch.\n\n"
+                f"Changed files JSON:\n{json.dumps(payload, separators=(',', ':'))}"
+            ),
         )
-        insight = FileInsight.model_validate(data)
-        if insight.path != file.path:
-            return insight.model_copy(update={"path": file.path})
-        return insight
+
+        try:
+            insights = [FileInsight.model_validate(item) for item in data["insights"]]
+        except (KeyError, TypeError, ValidationError) as error:
+            raise InsightGenerationError(
+                "Codex returned invalid file insights.",
+                code="codex_invalid_response",
+            ) from error
+
+        by_path = {insight.path: insight for insight in insights}
+        missing_paths = [file.path for file in files if file.path not in by_path]
+        if missing_paths:
+            raise InsightGenerationError(
+                "Codex did not return insights for every changed file.",
+                code="codex_incomplete_response",
+            )
+        return [by_path[file.path] for file in files]
 
     async def code_explanation(self, payload: ExplanationPayload) -> CodeExplanation:
         data = await self._structured_response(
-            name="code_explanation",
             schema=CODE_EXPLANATION_SCHEMA,
-            input_messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "Explain the selected pull request code for a reviewer. "
-                        "Return concise JSON. Ground the answer in the supplied file, "
-                        "side, range, and selected code only."
-                    ),
-                },
-                {"role": "user", "content": payload.model_dump_json(by_alias=True)},
-            ],
+            prompt=(
+                "Explain selected pull request code for a reviewer as JSON.\n"
+                "Ground the answer in the supplied file, side, range, and selected code only.\n"
+                "Be concise and specific.\n\n"
+                f"Selection JSON:\n{payload.model_dump_json(by_alias=True)}"
+            ),
         )
-        explanation = CodeExplanation.model_validate(data)
+        try:
+            explanation = CodeExplanation.model_validate(data)
+        except ValidationError as error:
+            raise InsightGenerationError(
+                "Codex returned an invalid code explanation.",
+                code="codex_invalid_response",
+            ) from error
         return explanation.model_copy(update={"selected_code": payload.selected_code})
 
-    async def _structured_response(
-        self,
-        *,
-        name: str,
-        schema: Mapping[str, Any],
-        input_messages: Sequence[Mapping[str, str]],
-    ) -> Any:
-        response = await self._client.post(
-            "/responses",
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": "application/json",
-            },
-            json={
-                "model": self._model,
-                "input": list(input_messages),
-                "text": {
-                    "format": {
-                        "type": "json_schema",
-                        "name": name,
-                        "strict": True,
-                        "schema": schema,
-                    },
-                },
-            },
-        )
-        response.raise_for_status()
-        return json.loads(_extract_response_text(response.json()))
+    async def _structured_response(self, *, schema: dict[str, Any], prompt: str) -> Any:
+        if shutil.which(self._command) is None:
+            raise InsightGenerationError(
+                "Codex CLI is not installed or is not on PATH.",
+                code="codex_unavailable",
+                status_code=503,
+            )
+
+        with tempfile.TemporaryDirectory(prefix="diffviewer-codex-") as directory:
+            schema_path = Path(directory) / "schema.json"
+            output_path = Path(directory) / "output.json"
+            schema_path.write_text(json.dumps(schema), encoding="utf-8")
+            command = [
+                self._command,
+                "-a",
+                "never",
+                "exec",
+                "--ephemeral",
+                "--skip-git-repo-check",
+                "--sandbox",
+                "read-only",
+                "--output-schema",
+                str(schema_path),
+                "-o",
+                str(output_path),
+            ]
+            if self._model:
+                command.extend(["--model", self._model])
+            command.append(prompt)
+
+            process = await asyncio.create_subprocess_exec(
+                *command,
+                cwd=self._workdir,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=self._timeout_seconds,
+                )
+            except TimeoutError as error:
+                process.kill()
+                await process.communicate()
+                raise InsightGenerationError(
+                    "Codex timed out while generating insights.",
+                    code="codex_timeout",
+                    status_code=504,
+                ) from error
+
+            if process.returncode != 0:
+                details = _process_output(stderr) or _process_output(stdout)
+                message = "Codex failed to generate insights."
+                if details:
+                    message = f"{message} {details}"
+                raise InsightGenerationError(message, code="codex_failed")
+
+            try:
+                return json.loads(output_path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError) as error:
+                raise InsightGenerationError(
+                    "Codex did not write valid structured output.",
+                    code="codex_invalid_response",
+                ) from error
 
 
-def _extract_response_text(payload: Mapping[str, Any]) -> str:
-    output_text = payload.get("output_text")
-    if isinstance(output_text, str):
-        return output_text
-
-    output = payload.get("output")
-    if isinstance(output, list):
-        for item in output:
-            if not isinstance(item, Mapping):
-                continue
-            content = item.get("content")
-            if not isinstance(content, list):
-                continue
-            for part in content:
-                if not isinstance(part, Mapping):
-                    continue
-                text = part.get("text")
-                if isinstance(text, str):
-                    return text
-
-    raise ValueError("OpenAI response did not include structured output text.")
+def _process_output(value: bytes) -> str:
+    return value.decode("utf-8", errors="replace").strip().splitlines()[-1] if value else ""

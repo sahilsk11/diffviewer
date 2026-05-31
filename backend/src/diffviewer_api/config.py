@@ -109,12 +109,12 @@ class Settings(BaseSettings):
         default="http://localhost:3000",
         validation_alias="DIFFVIEWER_CORS_ORIGINS",
     )
-    openai_api_key: str | None = Field(default=None, validation_alias="OPENAI_API_KEY")
-    openai_api_base_url: str = Field(
-        default="https://api.openai.com/v1",
-        validation_alias="OPENAI_API_BASE_URL",
+    codex_cli_command: str = Field(default="codex", validation_alias="CODEX_CLI_COMMAND")
+    codex_model: str | None = Field(default=None, validation_alias="CODEX_MODEL")
+    codex_timeout_seconds: float = Field(
+        default=120.0,
+        validation_alias="CODEX_TIMEOUT_SECONDS",
     )
-    openai_model: str = Field(default="gpt-4o-mini", validation_alias="OPENAI_MODEL")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
@@ -125,9 +125,9 @@ class Settings(BaseSettings):
             return None
         return value
 
-    @field_validator("openai_api_key", mode="before")
+    @field_validator("codex_model", mode="before")
     @classmethod
-    def empty_openai_api_key_as_none(cls, value: object) -> object:
+    def empty_codex_model_as_none(cls, value: object) -> object:
         if value == "":
             return None
         return value

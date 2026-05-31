@@ -13,7 +13,7 @@ from diffviewer_api.config import Settings, get_settings
 from diffviewer_api.routes import comments, files, health, insights, pull_requests, review_state
 from diffviewer_api.services.file_service import FileService
 from diffviewer_api.services.github_client import GitHubClient, GitHubError
-from diffviewer_api.services.insight_provider import LocalInsightProvider, OpenAIInsightProvider
+from diffviewer_api.services.insight_provider import CodexCliInsightProvider, InsightProvider
 from diffviewer_api.services.insight_service import InsightService
 from diffviewer_api.services.pull_request_recommendation_service import (
     PullRequestRecommendationService,
@@ -35,7 +35,10 @@ class SinglePageAppStaticFiles(StaticFiles):
             return await super().get_response("index.html", scope)
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    insight_provider: InsightProvider | None = None,
+) -> FastAPI:
     resolved_settings = settings or get_settings()
 
     @asynccontextmanager
@@ -55,24 +58,21 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.state.pull_request_recommendation_service = PullRequestRecommendationService(
             github_client,
         )
-        if resolved_settings.openai_api_key is None:
-            insight_provider = LocalInsightProvider()
-        else:
-            insight_provider = OpenAIInsightProvider(
-                api_key=resolved_settings.openai_api_key,
-                model=resolved_settings.openai_model,
-                base_url=resolved_settings.openai_api_base_url,
-            )
-        app.state.insight_provider = insight_provider
+        resolved_insight_provider = insight_provider or CodexCliInsightProvider(
+            command=resolved_settings.codex_cli_command,
+            model=resolved_settings.codex_model,
+            timeout_seconds=resolved_settings.codex_timeout_seconds,
+        )
+        app.state.insight_provider = resolved_insight_provider
         app.state.insight_service = InsightService(
             pull_requests=app.state.pull_request_service,
             files=app.state.file_service,
-            provider=insight_provider,
+            provider=resolved_insight_provider,
         )
         try:
             yield
         finally:
-            await insight_provider.close()
+            await resolved_insight_provider.close()
             await github_client.close()
             db_connection.close()
 

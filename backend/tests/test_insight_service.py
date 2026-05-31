@@ -1,10 +1,17 @@
 import asyncio
+from collections.abc import Sequence
 
 import pytest
 
 from diffviewer_api.models.files import FileContents, FileSide, PullRequestFile
-from diffviewer_api.models.insights import CodeExplanationRequest, FileInsightsGenerateRequest
-from diffviewer_api.services.insight_provider import LocalInsightProvider
+from diffviewer_api.models.insights import (
+    CodeExplanation,
+    CodeExplanationRequest,
+    FileInsight,
+    FileInsightsGenerateRequest,
+    InsightProviderName,
+)
+from diffviewer_api.services.insight_provider import ExplanationPayload
 from diffviewer_api.services.insight_service import InsightService, StalePullRequestRevisionError
 from diffviewer_api.services.pull_request_service import PullRequestRevision
 
@@ -70,23 +77,49 @@ class FakeFiles:
         )
 
 
-class SlowProvider(LocalInsightProvider):
+class FakeProvider:
+    @property
+    def name(self) -> InsightProviderName:
+        return InsightProviderName.codex
+
+    async def file_insights(self, files: Sequence[PullRequestFile]) -> list[FileInsight]:
+        return [
+            FileInsight(
+                path=file.path,
+                summary=f"Generated summary for {file.path}.",
+                watch_outs=[f"Review {file.path}."],
+            )
+            for file in files
+        ]
+
+    async def code_explanation(self, payload: ExplanationPayload) -> CodeExplanation:
+        return CodeExplanation(
+            label=f"{payload.path} lines {payload.start_line}-{payload.end_line}",
+            selected_code=payload.selected_code,
+            text=f"Generated explanation for {payload.path}.",
+        )
+
+    async def close(self) -> None:
+        return None
+
+
+class SlowProvider(FakeProvider):
     def __init__(self) -> None:
         self.max_in_flight = 0
         self._in_flight = 0
 
-    async def file_insight(self, file: PullRequestFile):
+    async def file_insights(self, files: Sequence[PullRequestFile]) -> list[FileInsight]:
         self._in_flight += 1
         self.max_in_flight = max(self.max_in_flight, self._in_flight)
         await asyncio.sleep(0.01)
         try:
-            return await super().file_insight(file)
+            return await super().file_insights(files)
         finally:
             self._in_flight -= 1
 
 
 @pytest.mark.asyncio
-async def test_file_insights_generate_in_parallel_and_reuse_cache() -> None:
+async def test_file_insights_generate_batch_and_reuse_cache() -> None:
     pull_requests = FakePullRequests()
     provider = SlowProvider()
     service = InsightService(
@@ -111,7 +144,7 @@ async def test_file_insights_generate_in_parallel_and_reuse_cache() -> None:
     assert [insight.path for insight in first.insights] == ["src/first.ts", "src/second.ts"]
     assert second.insights == first.insights
     assert pull_requests.file_calls == 1
-    assert provider.max_in_flight == 2
+    assert provider.max_in_flight == 1
 
 
 @pytest.mark.asyncio
@@ -119,7 +152,7 @@ async def test_explain_code_reads_selected_lines_when_not_provided() -> None:
     service = InsightService(
         pull_requests=FakePullRequests(),  # pyright: ignore[reportArgumentType]
         files=FakeFiles(),  # pyright: ignore[reportArgumentType]
-        provider=LocalInsightProvider(),
+        provider=FakeProvider(),
     )
 
     explanation = await service.explain_code(
@@ -146,7 +179,7 @@ async def test_insights_reject_stale_revision() -> None:
     service = InsightService(
         pull_requests=pull_requests,  # pyright: ignore[reportArgumentType]
         files=FakeFiles(),  # pyright: ignore[reportArgumentType]
-        provider=LocalInsightProvider(),
+        provider=FakeProvider(),
     )
 
     with pytest.raises(StalePullRequestRevisionError) as error_info:

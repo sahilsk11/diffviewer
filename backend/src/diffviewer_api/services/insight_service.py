@@ -1,4 +1,3 @@
-import asyncio
 import hashlib
 from dataclasses import dataclass
 
@@ -71,11 +70,7 @@ class InsightService:
                 pull_number,
                 force_refresh=True,
             )
-            cached = list(
-                await asyncio.gather(
-                    *(self._provider.file_insight(file) for file in changed_files),
-                )
-            )
+            cached = await self._provider.file_insights(changed_files)
             self._file_insight_cache[key] = cached
 
         return FileInsightsResponse(

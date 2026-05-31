@@ -6,8 +6,7 @@ from diffviewer_api.models.files import FileSide
 
 
 class InsightProviderName(StrEnum):
-    local = "local"
-    openai = "openai"
+    codex = "codex"
 
 
 class InsightRevision(BaseModel):
