@@ -121,7 +121,8 @@ Do not expose GitHub tokens as `VITE_*` variables. They belong only in the
 backend process. If no token env var is set, local development checks common
 machine credentials in this order: `/etc/<user>/secrets.env`,
 `/etc/sas/secrets.env`, `/etc/sas-system/secrets.env`,
-`~/.config/gh/hosts.yml`, then `~/.git-credentials`.
+`~/.config/gh/hosts.yml`, `~/.git-credentials`, then `vault get GITHUB_TOKEN`
+or `vault get GH_TOKEN`.
 
 Generated insights require the Codex CLI to be installed and logged in on the
 backend host. If Codex is unavailable or fails, the insights endpoints return an
