@@ -1,5 +1,6 @@
 import getpass
 import os
+import subprocess
 from functools import lru_cache
 from pathlib import Path
 from urllib.parse import unquote, urlparse
@@ -8,6 +9,7 @@ from pydantic import AliasChoices, Field, computed_field, field_validator, model
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 GITHUB_TOKEN_KEYS = ("GITHUB_TOKEN", "GH_TOKEN")
+VAULT_COMMAND_TIMEOUT_SECONDS = 5
 
 
 def _clean_secret_value(value: str) -> str | None:
@@ -68,6 +70,27 @@ def _read_git_credentials_token(path: Path) -> str | None:
     return None
 
 
+def read_vault_github_token() -> str | None:
+    for key in GITHUB_TOKEN_KEYS:
+        try:
+            result = subprocess.run(
+                ["vault", "get", key],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=VAULT_COMMAND_TIMEOUT_SECONDS,
+            )
+        except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+            return None
+
+        if result.returncode != 0:
+            continue
+        token = _clean_secret_value(result.stdout)
+        if token is not None:
+            return token
+    return None
+
+
 def github_token_search_paths(home: Path | None = None, username: str | None = None) -> list[Path]:
     resolved_home = home or Path.home()
     resolved_username = username or os.environ.get("USER") or getpass.getuser()
@@ -81,7 +104,7 @@ def github_token_search_paths(home: Path | None = None, username: str | None = N
 
 
 def discover_github_token(search_paths: list[Path] | None = None) -> str | None:
-    paths = search_paths or github_token_search_paths()
+    paths = github_token_search_paths() if search_paths is None else search_paths
     for path in paths:
         suffix = path.name
         if suffix == "hosts.yml":
@@ -92,7 +115,7 @@ def discover_github_token(search_paths: list[Path] | None = None) -> str | None:
             token = _read_env_token(path)
         if token is not None:
             return token
-    return None
+    return read_vault_github_token()
 
 
 class Settings(BaseSettings):

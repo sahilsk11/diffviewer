@@ -1,6 +1,14 @@
+import subprocess
 from pathlib import Path
 
-from diffviewer_api.config import Settings, discover_github_token, github_token_search_paths
+import pytest
+
+from diffviewer_api.config import (
+    Settings,
+    discover_github_token,
+    github_token_search_paths,
+    read_vault_github_token,
+)
 
 
 def test_cors_origins_parse_comma_separated_env() -> None:
@@ -51,3 +59,41 @@ def test_discovers_github_token_from_gh_hosts(tmp_path: Path) -> None:
 
     assert discover_github_token([hosts]) == "from-gh-hosts"
 
+
+def test_discovers_github_token_from_vault_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(
+        command: list[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+        timeout: int,
+    ) -> subprocess.CompletedProcess[str]:
+        calls.append(command)
+        stdout = "" if command[-1] == "GITHUB_TOKEN" else "from-vault\n"
+        return subprocess.CompletedProcess(command, returncode=0, stdout=stdout, stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert read_vault_github_token() == "from-vault"
+    assert calls == [["vault", "get", "GITHUB_TOKEN"], ["vault", "get", "GH_TOKEN"]]
+
+
+def test_vault_cli_failure_does_not_block_token_discovery(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_run(
+        command: list[str],
+        *,
+        check: bool,
+        capture_output: bool,
+        text: bool,
+        timeout: int,
+    ) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, returncode=1, stdout="", stderr="missing")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    assert discover_github_token([]) is None
