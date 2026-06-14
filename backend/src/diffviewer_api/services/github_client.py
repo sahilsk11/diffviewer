@@ -19,12 +19,14 @@ class GitHubClient:
         self,
         *,
         base_url: str,
-        token: str | None,
+        token: str | None = None,
+        tokens: list[str] | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(base_url=base_url.rstrip("/"), timeout=20.0)
-        self._token = token
+        self._tokens = tokens or ([token] if token is not None else [])
+        self._token_index = 0
 
     async def close(self) -> None:
         if self._owns_client:
@@ -33,6 +35,12 @@ class GitHubClient:
     @property
     def is_authenticated(self) -> bool:
         return self._token is not None
+
+    @property
+    def _token(self) -> str | None:
+        if self._token_index >= len(self._tokens):
+            return None
+        return self._tokens[self._token_index]
 
     @property
     def headers(self) -> dict[str, str]:
@@ -125,16 +133,22 @@ class GitHubClient:
         params: Mapping[str, Any] | None = None,
         json: Mapping[str, Any] | None = None,
     ) -> Any:
-        response = await self._client.request(
-            method,
-            path,
-            headers=self.headers,
-            params=params,
-            json=json,
-        )
-        if response.is_success:
-            return response.json()
-        raise self._error_from_response(response)
+        last_response: httpx.Response | None = None
+        while True:
+            response = await self._client.request(
+                method,
+                path,
+                headers=self.headers,
+                params=params,
+                json=json,
+            )
+            if response.is_success:
+                return response.json()
+            last_response = response
+            if response.status_code != 401 or self._token_index >= len(self._tokens) - 1:
+                break
+            self._token_index += 1
+        raise self._error_from_response(last_response)
 
     def _error_from_response(self, response: httpx.Response) -> GitHubError:
         details: Any

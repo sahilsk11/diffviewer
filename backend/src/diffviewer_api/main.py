@@ -45,7 +45,7 @@ def create_app(
     async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         github_client = GitHubClient(
             base_url=resolved_settings.github_api_base_url,
-            token=resolved_settings.github_token,
+            tokens=resolved_settings.github_tokens,
         )
         db_connection = connect(resolved_settings.db_path)
         app.state.github_client = github_client
