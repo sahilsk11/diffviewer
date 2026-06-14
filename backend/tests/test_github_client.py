@@ -27,6 +27,31 @@ async def test_auth_header_is_added_server_side() -> None:
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_auth_retries_with_fallback_token_after_bad_credentials() -> None:
+    route = respx.get("https://api.github.test/repos/acme/widget/pulls/1").mock(
+        side_effect=[
+            httpx.Response(401, json={"message": "Bad credentials"}),
+            httpx.Response(200, json={"number": 1}),
+        ],
+    )
+    client = GitHubClient(
+        base_url="https://api.github.test",
+        tokens=["stale-token", "valid-token"],
+    )
+
+    try:
+        payload = await client.get_pull_request("acme", "widget", 1)
+    finally:
+        await client.close()
+
+    assert payload == {"number": 1}
+    assert len(route.calls) == 2
+    assert route.calls[0].request.headers["Authorization"] == "Bearer stale-token"
+    assert route.calls[1].request.headers["Authorization"] == "Bearer valid-token"
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_pull_request_file_pagination() -> None:
     first_page = [{"filename": f"file-{index}.py"} for index in range(100)]
     second_page = [{"filename": "last.py"}]

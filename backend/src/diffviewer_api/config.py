@@ -103,8 +103,9 @@ def github_token_search_paths(home: Path | None = None, username: str | None = N
     ]
 
 
-def discover_github_token(search_paths: list[Path] | None = None) -> str | None:
+def discover_github_tokens(search_paths: list[Path] | None = None) -> list[str]:
     paths = github_token_search_paths() if search_paths is None else search_paths
+    tokens: list[str] = []
     for path in paths:
         suffix = path.name
         if suffix == "hosts.yml":
@@ -113,9 +114,18 @@ def discover_github_token(search_paths: list[Path] | None = None) -> str | None:
             token = _read_git_credentials_token(path)
         else:
             token = _read_env_token(path)
-        if token is not None:
-            return token
-    return read_vault_github_token()
+        if token is not None and token not in tokens:
+            tokens.append(token)
+
+    vault_token = read_vault_github_token() if not tokens else None
+    if vault_token is not None:
+        tokens.append(vault_token)
+    return tokens
+
+
+def discover_github_token(search_paths: list[Path] | None = None) -> str | None:
+    tokens = discover_github_tokens(search_paths)
+    return tokens[0] if tokens else None
 
 
 class Settings(BaseSettings):
@@ -160,6 +170,16 @@ class Settings(BaseSettings):
         if self.github_token is None:
             self.github_token = discover_github_token()
         return self
+
+    @property
+    def github_tokens(self) -> list[str]:
+        tokens: list[str] = []
+        if self.github_token is not None:
+            tokens.append(self.github_token)
+        for token in discover_github_tokens():
+            if token not in tokens:
+                tokens.append(token)
+        return tokens
 
     @field_validator("diffviewer_db_path", mode="before")
     @classmethod

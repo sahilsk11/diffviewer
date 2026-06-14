@@ -6,6 +6,7 @@ import pytest
 from diffviewer_api.config import (
     Settings,
     discover_github_token,
+    discover_github_tokens,
     github_token_search_paths,
     read_vault_github_token,
 )
@@ -58,6 +59,15 @@ def test_discovers_github_token_from_gh_hosts(tmp_path: Path) -> None:
     )
 
     assert discover_github_token([hosts]) == "from-gh-hosts"
+
+
+def test_discovers_github_token_fallbacks_without_duplicates(tmp_path: Path) -> None:
+    secrets = tmp_path / "secrets.env"
+    hosts = tmp_path / "hosts.yml"
+    secrets.write_text("GH_TOKEN=from-secret-file\n", encoding="utf-8")
+    hosts.write_text("github.com:\n    oauth_token: from-gh-hosts\n", encoding="utf-8")
+
+    assert discover_github_tokens([secrets, hosts]) == ["from-secret-file", "from-gh-hosts"]
 
 
 def test_discovers_github_token_from_vault_cli(monkeypatch: pytest.MonkeyPatch) -> None:
