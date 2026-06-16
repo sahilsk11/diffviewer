@@ -109,7 +109,7 @@ Copy `backend/.env.example` when local overrides are needed.
 
 | Variable                    | Purpose                                      | Default                            |
 | --------------------------- | -------------------------------------------- | ---------------------------------- |
-| `GITHUB_TOKEN` / `GH_TOKEN` | Server-side GitHub token for private repos.  | local credential fallback          |
+| `GITHUB_TOKEN` / `GH_TOKEN` | Server-side GitHub token for private repos.  | unauthenticated GitHub API access  |
 | `GITHUB_API_BASE_URL`       | GitHub REST API base URL.                    | `https://api.github.com`           |
 | `DIFFVIEWER_DB_PATH`        | SQLite path for per-file review state.       | `~/.diffviewer/diffviewer.sqlite3` |
 | `DIFFVIEWER_CORS_ORIGINS`   | Comma-separated allowed frontend origins.    | `http://localhost:3000`            |
@@ -118,11 +118,9 @@ Copy `backend/.env.example` when local overrides are needed.
 | `CODEX_TIMEOUT_SECONDS`     | Timeout for each Codex insight call.         | `120`                              |
 
 Do not expose GitHub tokens as `VITE_*` variables. They belong only in the
-backend process. If no token env var is set, local development checks common
-machine credentials in this order: `/etc/<user>/secrets.env`,
-`/etc/sas/secrets.env`, `/etc/sas-system/secrets.env`,
-`~/.config/gh/hosts.yml`, `~/.git-credentials`, then `vault get GITHUB_TOKEN`
-or `vault get GH_TOKEN`.
+backend process. Diffviewer does not discover local GitHub credentials or call
+secret-management tools at startup; deployment should put the desired token in
+the backend environment or `backend/.env`.
 
 Generated insights require the Codex CLI to be installed and logged in on the
 backend host. If Codex is unavailable or fails, the insights endpoints return an
