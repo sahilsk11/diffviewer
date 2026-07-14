@@ -1,0 +1,16 @@
+.git
+.github
+.kanna
+.env
+.env.*
+!.env.example
+**/__pycache__
+**/.pytest_cache
+**/.ruff_cache
+**/.venv
+**/*.pyc
+backend/tests
+dist
+node_modules
+coverage
+*.log
