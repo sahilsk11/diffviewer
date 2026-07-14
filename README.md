@@ -122,9 +122,49 @@ backend process. Diffviewer does not discover local GitHub credentials or call
 secret-management tools at startup; deployment should put the desired token in
 the backend environment or `backend/.env`.
 
-Generated insights require the Codex CLI to be installed and logged in on the
-backend host. If Codex is unavailable or fails, the insights endpoints return an
-error; the app does not generate placeholder summaries.
+Generated insights require the Codex CLI to be installed and authenticated in
+the backend runtime. If Codex is unavailable or fails, the insights endpoints
+return an error; the app does not generate placeholder summaries.
+
+## Container image
+
+The app-owned `Dockerfile` builds the frontend and backend into one production
+image. Build a selected Git revision with its immutable revision label:
+
+```bash
+docker build \
+  --build-arg VCS_REF="$(git rev-parse HEAD)" \
+  --tag "diffviewer:$(git rev-parse --short HEAD)" \
+  .
+```
+
+The runtime contract is deliberately small:
+
+- HTTP listens on container port `8000`; readiness is `GET /healthz`.
+- Mount persistent storage at `/data`. The SQLite database defaults to
+  `/data/diffviewer.sqlite3` and can still be overridden with
+  `DIFFVIEWER_DB_PATH`.
+- Supply `GITHUB_TOKEN` or `GH_TOKEN` at runtime. Never bake credentials into
+  the image.
+- Supply `DIFFVIEWER_CORS_ORIGINS` for the public origin.
+- The image includes the Codex CLI. For generated insights, inject its runtime
+  credentials using the authentication mechanism selected by the operator;
+  `CODEX_CLI_COMMAND`, `CODEX_MODEL`, and `CODEX_TIMEOUT_SECONDS` remain
+  configurable.
+- The process runs as the non-root user `diffviewer` (`uid=10001`, `gid=10001`),
+  so the mounted data directory must be writable by that identity.
+- Application logs go to stdout/stderr for the container runtime to collect.
+
+Example:
+
+```bash
+docker run --rm \
+  --publish 127.0.0.1:8000:8000 \
+  --volume diffviewer-data:/data \
+  --env GITHUB_TOKEN \
+  --env DIFFVIEWER_CORS_ORIGINS=https://diffviewer.example.com \
+  diffviewer:$(git rev-parse --short HEAD)
+```
 
 ## Lint posture
 
